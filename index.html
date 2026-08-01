@@ -41,6 +41,29 @@ img{max-width:100%;}
 button{font-family:inherit;cursor:pointer;}
 ::selection{background:var(--accent);color:var(--accent-text);}
 
+/* ---- Best-effort content deterrents (not real protection, see app.js note) ---- */
+*, *::before, *::after{
+  -webkit-user-select:none !important;-moz-user-select:none !important;
+  -ms-user-select:none !important;user-select:none !important;
+}
+input, textarea{
+  -webkit-user-select:text !important;-moz-user-select:text !important;
+  -ms-user-select:text !important;user-select:text !important;
+}
+img{-webkit-user-drag:none;pointer-events:auto;}
+.protect-watermark{
+  position:fixed;inset:0;z-index:9999;pointer-events:none;
+  background-repeat:repeat;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='340' height='190'%3E%3Ctext x='0' y='120' font-family='Arial,Helvetica,sans-serif' font-size='16' fill='rgba(242,241,250,0.05)' transform='rotate(-28 170 95)'%3EHYRE ACADEMY %C2%B7 CONFIDENTIAL%3C/text%3E%3C/svg%3E");
+}
+@media print{
+  body *{display:none !important;}
+  body::after{
+    content:"Printing is restricted. Contact Hyre Operations for an approved copy.";
+    display:block !important;padding:80px 40px;font-size:22px;text-align:center;color:#000;
+  }
+}
+
 /* prefers-reduced-motion */
 @media (prefers-reduced-motion: reduce){
   *{animation:none !important;transition:none !important;scroll-behavior:auto !important;}
@@ -1528,6 +1551,28 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
       }
     });
   }
+
+  // ---------------- Content Protection (best-effort deterrents only) ----------------
+  // Note: none of this can actually stop screenshots, printing, or a determined
+  // person with dev tools / view-source / a second device. It only raises the
+  // friction for casual copy-paste and right-click saving.
+  function applyContentProtection(){
+    document.addEventListener('contextmenu', function(e){ e.preventDefault(); });
+    document.addEventListener('copy', function(e){ e.preventDefault(); });
+    document.addEventListener('cut', function(e){ e.preventDefault(); });
+    document.addEventListener('dragstart', function(e){ e.preventDefault(); });
+    document.addEventListener('keydown', function(e){
+      var k = e.key ? e.key.toLowerCase() : '';
+      var mod = e.ctrlKey || e.metaKey;
+      if(mod && (k === 'p' || k === 's' || k === 'c' || k === 'u')){
+        e.preventDefault();
+      }
+    });
+
+    var watermark = h('div', {class:'protect-watermark', 'aria-hidden':'true'});
+    document.body.appendChild(watermark);
+  }
+  applyContentProtection();
 
   // ---------------- Init ----------------
   renderTopNav();
