@@ -1,4 +1,4 @@
-<!DOCTYPE html> 
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -294,12 +294,16 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
 .portal-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px;}
 .portal-card{
   background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);
-  padding:28px;display:flex;flex-direction:column;gap:12px;
+  padding:28px;display:flex;flex-direction:column;gap:12px;transition:border-color .15s, transform .15s;
 }
 .portal-card .portal-icon{
   width:44px;height:44px;border-radius:10px;background:var(--accent);color:var(--accent-text);
   display:flex;align-items:center;justify-content:center;font-weight:900;font-size:18px;
 }
+.portal-card-home{padding:32px 28px;border-width:1px;}
+.portal-card-home:hover{border-color:var(--accent-dim);transform:translateY(-3px);}
+.portal-card-home .portal-icon{width:52px;height:52px;font-size:20px;border-radius:12px;}
+.portal-card-home h3{font-size:21px;margin:0;}
 .policy-card{
   background:var(--bg-card);border:1px dashed var(--border);border-radius:var(--radius);
   padding:22px;margin-top:18px;
@@ -519,28 +523,47 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
       h('div', {class:'wrap'}, [
         h('span', {class:'eyebrow'}, [h('span',{class:'dot'}), 'Hyre Training Academy']),
         h('h1', {}, ['This is where Hyre builds ', h('em',{},['operators']), ', not order-takers.']),
-        h('p', {class:'lede'}, ['Five enterprise-grade training modules. Real volumes, real frameworks, real certification standards. No filler courses. No checkbox training. Built to produce professionals who are client-ready on day one and irreplaceable by month three.']),
+        h('p', {class:'lede'}, ['Every role gets a real curriculum, a certification bar, and a portal built just for them. No filler courses. No checkbox training. Built to produce professionals who are client-ready on day one and irreplaceable by month three.']),
         h('div', {class:'hero-actions'}, [
-          h('a', {class:'btn btn-primary', href:'#/modules'}, ['Browse Modules →']),
+          h('a', {class:'btn btn-primary', href:'#/portals'}, ['Enter Your Portal →']),
           h('a', {class:'btn btn-ghost', href:'#/standards'}, ['See the Standard'])
         ]),
         h('div', {class:'hero-stats'}, [
-          h('div', {class:'hero-stat'}, [h('div',{class:'num'},['5']), h('div',{class:'label'},['Academy Modules'])]),
-          h('div', {class:'hero-stat'}, [h('div',{class:'num'},[String(totalVolumes)]), h('div',{class:'label'},['Total Volumes'])]),
+          h('div', {class:'hero-stat'}, [h('div',{class:'num'},['3']), h('div',{class:'label'},['Dedicated Portals'])]),
+          h('div', {class:'hero-stat'}, [h('div',{class:'num'},[String(totalVolumes)]), h('div',{class:'label'},['Total Training Volumes'])]),
           h('div', {class:'hero-stat'}, [h('div',{class:'num'},['7']), h('div',{class:'label'},['Mandatory Quality Standards'])]),
           h('div', {class:'hero-stat'}, [h('div',{class:'num'},['80%']), h('div',{class:'label'},['Certification Pass Bar'])])
         ])
       ])
     ]);
 
-    var modSection = h('section', {}, [
+    var portalsSection = h('section', {}, [
       h('div', {class:'wrap'}, [
         h('div', {class:'section-head'}, [
-          h('span', {class:'section-tag'}, ['The Curriculum']),
-          h('h2', {}, ['Every module is a complete operating system.']),
-          h('p', {class:'section-desc'}, ['Volumes, chapters, frameworks, standards, and a certification path. Pick a track built for the role, not a generic course repackaged five ways.'])
+          h('span', {class:'section-tag'}, ['Where You Start']),
+          h('h2', {}, ['One academy. Three ways in.']),
+          h('p', {class:'section-desc'}, ['VAs train. Clients verify. Operations approves. Everyone gets the exact view they need, built for them, and nothing they don’t.'])
         ]),
-        h('div', {class:'module-grid'}, MODULE_ORDER.map(renderModuleCard))
+        h('div', {class:'portal-grid portal-grid-home'}, [
+          h('a', {class:'portal-card portal-card-home', href:'#/portal/va'}, [
+            h('div', {class:'portal-icon'}, ['VA']),
+            h('h3', {}, ['VA Portal']),
+            h('p', {style:'color:var(--text-dim);font-size:14.5px;margin:0;'}, ['For active Hyre VAs. Every module, every volume, every requirement between you and certification, tracked in one place. Show up and do the work. This is where it counts.']),
+            h('span', {class:'btn btn-sm btn-ghost', style:'align-self:flex-start;margin-top:8px;'}, ['Enter the VA Portal →'])
+          ]),
+          h('a', {class:'portal-card portal-card-home', href:'#/portal/client'}, [
+            h('div', {class:'portal-icon', style:'background:'+THEME['paid-ads'].color+';'}, ['CL']),
+            h('h3', {}, ['Client Portal']),
+            h('p', {style:'color:var(--text-dim);font-size:14.5px;margin:0;'}, ['For active Hyre clients. See exactly what your VA is trained and certified in, and the bar they had to clear to earn it. No guessing what "trained" means here.']),
+            h('span', {class:'btn btn-sm btn-ghost', style:'align-self:flex-start;margin-top:8px;'}, ['Enter the Client Portal →'])
+          ]),
+          h('a', {class:'portal-card portal-card-home', href:'#/portal/internal'}, [
+            h('div', {class:'portal-icon', style:'background:'+THEME['articulation'].color+';'}, ['OP']),
+            h('h3', {}, ['Internal Portal']),
+            h('p', {style:'color:var(--text-dim);font-size:14.5px;margin:0;'}, ['For Hyre Operations. Approve enrollment, enforce the standard, and keep the whole academy running the way it is supposed to.']),
+            h('span', {class:'btn btn-sm btn-ghost', style:'align-self:flex-start;margin-top:8px;'}, ['Enter the Internal Portal →'])
+          ])
+        ])
       ])
     ]);
 
@@ -571,9 +594,9 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
       h('div', {class:'wrap'}, [
         h('div', {class:'cta-band'}, [
           h('h2', {}, ['A weak operator waits for instructions.']),
-          h('p', {}, ['A strong one removes friction before anyone notices it existed. This academy produces the second kind. Pick a module and start today.']),
+          h('p', {}, ['A strong one already knows which door is theirs. Find your portal and get to work. This academy produces the second kind.']),
           h('div', {class:'cta-actions'}, [
-            h('a', {class:'btn btn-primary', href:'#/modules'}, ['Browse All Modules']),
+            h('a', {class:'btn btn-primary', href:'#/portals'}, ['Enter Your Portal →']),
             h('a', {class:'btn btn-ghost', href:'#/about'}, ['How This Academy Works'])
           ])
         ])
@@ -581,7 +604,7 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
     ]);
 
     root.appendChild(hero);
-    root.appendChild(modSection);
+    root.appendChild(portalsSection);
     root.appendChild(pillars);
     root.appendChild(ctaBand);
     root.appendChild(renderFooter());
@@ -1200,7 +1223,18 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
       ])
     ]);
 
-    var formSec = h('section', {});
+    var modGrid = h('section', {}, [
+      h('div', {class:'wrap'}, [
+        h('div', {class:'section-head'}, [
+          h('span', {class:'section-tag'}, ['All Academy Tracks']),
+          h('h2', {}, ['Every track operations can approve']),
+          h('p', {class:'section-desc'}, ['The tracks currently live in this academy. Every enrollment request must map to one of these, no exceptions.'])
+        ]),
+        h('div', {class:'module-grid'}, MODULE_ORDER.map(renderModuleCard))
+      ])
+    ]);
+
+    var formSec = h('section', {class:'bordered-top bg-raised'});
     var formWrap = h('div', {class:'wrap'});
     var formCard = h('div', {class:'std-card', style:'max-width:560px;border-color:var(--accent);'});
     var nameInput, emailInput, roleSelect, statusMsg;
@@ -1285,6 +1319,7 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
     ]);
 
     root.appendChild(hero);
+    root.appendChild(modGrid);
     root.appendChild(formSec);
     root.appendChild(policySec);
     root.appendChild(renderFooter());
