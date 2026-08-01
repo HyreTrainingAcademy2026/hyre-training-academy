@@ -41,24 +41,26 @@ img{max-width:100%;}
 button{font-family:inherit;cursor:pointer;}
 ::selection{background:var(--accent);color:var(--accent-text);}
 
-/* ---- Best-effort content deterrents (not real protection, see app.js note) ---- */
-*, *::before, *::after{
+/* ---- Best-effort content deterrents (not real protection, see app.js note) ----
+   Scoped to body.content-protected so allowlisted editors (identified via the
+   Cloudflare Access identity check in app.js) can have this removed for them. */
+.content-protected *, .content-protected *::before, .content-protected *::after{
   -webkit-user-select:none !important;-moz-user-select:none !important;
   -ms-user-select:none !important;user-select:none !important;
 }
-input, textarea{
+.content-protected input, .content-protected textarea{
   -webkit-user-select:text !important;-moz-user-select:text !important;
   -ms-user-select:text !important;user-select:text !important;
 }
-img{-webkit-user-drag:none;pointer-events:auto;}
+.content-protected img{-webkit-user-drag:none;pointer-events:auto;}
 .protect-watermark{
   position:fixed;inset:0;z-index:9999;pointer-events:none;
   background-repeat:repeat;
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='340' height='190'%3E%3Ctext x='0' y='120' font-family='Arial,Helvetica,sans-serif' font-size='16' fill='rgba(242,241,250,0.05)' transform='rotate(-28 170 95)'%3EHYRE ACADEMY %C2%B7 CONFIDENTIAL%3C/text%3E%3C/svg%3E");
 }
 @media print{
-  body *{display:none !important;}
-  body::after{
+  body.content-protected *{display:none !important;}
+  body.content-protected::after{
     content:"Printing is restricted. Contact Hyre Operations for an approved copy.";
     display:block !important;padding:80px 40px;font-size:22px;text-align:center;color:#000;
   }
@@ -341,7 +343,7 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
 
 </style>
 </head>
-<body>
+<body class="content-protected">
 <div id="app"></div>
 
 <script id="content-data" type="application/json">
@@ -1556,23 +1558,70 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
   // Note: none of this can actually stop screenshots, printing, or a determined
   // person with dev tools / view-source / a second device. It only raises the
   // friction for casual copy-paste and right-click saving.
-  function applyContentProtection(){
-    document.addEventListener('contextmenu', function(e){ e.preventDefault(); });
-    document.addEventListener('copy', function(e){ e.preventDefault(); });
-    document.addEventListener('cut', function(e){ e.preventDefault(); });
-    document.addEventListener('dragstart', function(e){ e.preventDefault(); });
-    document.addEventListener('keydown', function(e){
+  //
+  // Editor exemption: Ethel and Derek are meant to bypass all of this. There is
+  // currently no login system on this static site, so there is no way to know
+  // who is viewing it -- that only becomes possible once the site is fronted by
+  // Cloudflare Access (still pending setup). Once it is, Access exposes the
+  // signed-in visitor's email at the same-origin /cdn-cgi/access/get-identity
+  // endpoint; checkEditorExemption() below checks that endpoint and lifts
+  // protection only for allowlisted emails. Until Access is actually live, that
+  // fetch will simply fail (this URL isn't behind Access yet), so protection
+  // correctly stays ON for everyone -- this fails safe, not open.
+  var EDITOR_EMAILS = ['ethel@hyreup.com']; // TODO: add Derek's email once confirmed
+
+  var protectionHandlers = {
+    contextmenu: function(e){ e.preventDefault(); },
+    copy: function(e){ e.preventDefault(); },
+    cut: function(e){ e.preventDefault(); },
+    dragstart: function(e){ e.preventDefault(); },
+    keydown: function(e){
       var k = e.key ? e.key.toLowerCase() : '';
       var mod = e.ctrlKey || e.metaKey;
       if(mod && (k === 'p' || k === 's' || k === 'c' || k === 'u')){
         e.preventDefault();
       }
-    });
+    }
+  };
+  var protectWatermarkEl = null;
 
-    var watermark = h('div', {class:'protect-watermark', 'aria-hidden':'true'});
-    document.body.appendChild(watermark);
+  function applyContentProtection(){
+    Object.keys(protectionHandlers).forEach(function(evt){
+      document.addEventListener(evt, protectionHandlers[evt]);
+    });
+    if(!protectWatermarkEl){
+      protectWatermarkEl = h('div', {class:'protect-watermark', 'aria-hidden':'true'});
+    }
+    if(!protectWatermarkEl.parentNode){
+      document.body.appendChild(protectWatermarkEl);
+    }
+    document.body.classList.add('content-protected');
   }
+
+  function removeContentProtection(){
+    Object.keys(protectionHandlers).forEach(function(evt){
+      document.removeEventListener(evt, protectionHandlers[evt]);
+    });
+    if(protectWatermarkEl && protectWatermarkEl.parentNode){
+      protectWatermarkEl.parentNode.removeChild(protectWatermarkEl);
+    }
+    document.body.classList.remove('content-protected');
+  }
+
+  function checkEditorExemption(){
+    fetch('/cdn-cgi/access/get-identity', {credentials:'include'})
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(identity){
+        var email = identity && identity.email ? String(identity.email).toLowerCase() : '';
+        if(email && EDITOR_EMAILS.indexOf(email) !== -1){
+          removeContentProtection();
+        }
+      })
+      .catch(function(){ /* not behind Access (yet) -- stay protected */ });
+  }
+
   applyContentProtection();
+  checkEditorExemption();
 
   // ---------------- Init ----------------
   renderTopNav();
