@@ -1192,6 +1192,9 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
   // people. This static site cannot post workspace notifications on its own,
   // so submission opens a pre-filled email as the best available substitute.
   var REGISTRATION_NOTIFY_EMAILS = ['ramon@hyreup.com', 'ethel@hyreup.com', 'bree@hyreup.com'];
+  // Direct link to the academy, baked into every registration email so whoever
+  // approves it never has to go dig it up separately.
+  var SITE_URL = 'https://hyretrainingacademy2026.github.io/hyre-training-academy/';
 
   function buildRegistrationForm(cfg){
     var card = h('div', {class:'std-card', style:'max-width:560px;border-color:var(--accent);'});
@@ -1324,7 +1327,9 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
           ],
           subject: function(v){ return 'VA Portal Registration — ' + v.name; },
           body: function(v){
-            return 'VA Portal registration request.\n\nFull Name: ' + v.name + '\nEmail: ' + v.email + '\n\nSubmitted via Hyre Training Academy VA Portal.';
+            return 'VA Portal registration request.\n\nFull Name: ' + v.name + '\nEmail: ' + v.email + '\n\nSubmitted via Hyre Training Academy VA Portal.' +
+              '\n\n— To approve —\n1. Check this name and email against the system Hyre already uses to track VA work hours.\n2. If it matches, reply-all with just the word "Approved". That reply is the approval record.\n' +
+              '(The academy has no login wall yet, so this VA can already reach every module today at ' + SITE_URL + ' — approving here is the compliance check, not a technical unlock.)';
           }
         })
       ])
@@ -1370,7 +1375,9 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
           ],
           subject: function(v){ return 'Client Portal Registration — ' + v.company; },
           body: function(v){
-            return 'Client Portal registration request.\n\nCompany Name: ' + v.company + '\nCompany Email: ' + v.companyEmail + '\nFull Name: ' + v.name + '\n\nSubmitted via Hyre Training Academy Client Portal.';
+            return 'Client Portal registration request.\n\nCompany Name: ' + v.company + '\nCompany Email: ' + v.companyEmail + '\nFull Name: ' + v.name + '\n\nSubmitted via Hyre Training Academy Client Portal.' +
+              '\n\n— To approve —\n1. Check this company and contact against the records Hyre keeps for active client accounts.\n2. If it matches, reply-all with just the word "Approved". That reply is the approval record.\n' +
+              '(The academy has no login wall yet, so this client can already view their VA\'s training and certifications today at ' + SITE_URL + ' — approving here is the compliance check, not a technical unlock.)';
           }
         })
       ])
@@ -1413,7 +1420,9 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
           ],
           subject: function(v){ return 'Internal Portal Registration — ' + v.name; },
           body: function(v){
-            return 'Internal Portal registration request.\n\nFull Name: ' + v.name + '\nEmail: ' + v.email + '\n\nSubmitted via Hyre Training Academy Internal Portal.';
+            return 'Internal Portal registration request.\n\nFull Name: ' + v.name + '\nEmail: ' + v.email + '\n\nSubmitted via Hyre Training Academy Internal Portal.' +
+              '\n\n— To approve —\n1. Check this name and email against Hyre\'s internal staff records.\n2. If it matches, reply-all with just the word "Approved". That reply is the approval record.\n' +
+              '(The academy has no login wall yet, so this person can already reach the internal portal today at ' + SITE_URL + ' — approving here is the compliance check, not a technical unlock.)';
           }
         })
       ])
