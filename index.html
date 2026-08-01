@@ -544,7 +544,7 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
     var hero = h('section', {class:'hero'}, [
       h('div', {class:'wrap'}, [
         h('span', {class:'eyebrow'}, [h('span',{class:'dot'}), 'Hyre Training Academy']),
-        h('h1', {}, ['This is where Hyre builds ', h('em',{},['operators']), ', not order-takers.']),
+        h('h1', {}, ['This is where Hyre builds ', h('em',{},['specialists']), ', not order-takers.']),
         h('p', {class:'lede'}, ['Every role gets a real curriculum, a certification bar, and a portal built just for them. No filler courses. No checkbox training. Built to produce professionals who are client-ready on day one and irreplaceable by month three.']),
         h('div', {style:'margin-top:32px;padding-top:28px;border-top:1px solid var(--border);max-width:640px;'}, [
           h('span', {class:'section-tag'}, ['Where You Start']),
@@ -590,8 +590,8 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
     var ctaBand = h('section', {}, [
       h('div', {class:'wrap'}, [
         h('div', {class:'cta-band'}, [
-          h('h2', {}, ['A weak operator waits for instructions.']),
-          h('p', {}, ['A strong one already knows what needs to happen next, and does it before anyone has to ask. That is the standard here. It does not bend for tenure, title, or a bad day.'])
+          h('h2', {}, ['Waiting for instructions is not how you succeed here.']),
+          h('p', {}, ['The people who thrive here already know what needs to happen next, and do it before anyone has to ask. That is the standard. It does not bend for tenure, title, or a bad day.'])
         ])
       ])
     ]);
@@ -979,7 +979,7 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
     var hero = h('div', {class:'module-hero'}, [
       h('div', {class:'wrap'}, [
         h('span', {class:'eyebrow'}, [h('span',{class:'dot'}), 'About']),
-        h('h1', {style:'font-size:40px'}, ['Built by operators, for operators.']),
+        h('h1', {style:'font-size:40px'}, ['Built by leaders, for professionals who lead and deliver.']),
         h('p', {class:'lede'}, ['Hyre does not buy training off the shelf, and we do not outsource what makes our team good at the job. We build it ourselves, to a standard most training never bothers to meet.'])
       ])
     ]);
@@ -1182,7 +1182,7 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
       errorEls[f.key] = err;
     });
 
-    var statusMsg = h('div', {style:'font-size:13px;color:var(--accent);margin:2px 0 12px;display:none;'});
+    var statusMsg = h('div', {style:'display:none;margin:2px 0 14px;padding:12px 14px;border-radius:8px;background:rgba(63,178,127,0.12);border:1px solid var(--green);color:var(--green);font-size:13.5px;font-weight:700;'});
     card.appendChild(statusMsg);
 
     var submitBtn = h('button', {class:'btn btn-primary btn-block', onclick:function(){
@@ -1207,7 +1207,7 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
       var subject = cfg.subject(values);
       var body = cfg.body(values);
       var mailto = 'mailto:' + REGISTRATION_NOTIFY_EMAILS.join(',') + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
-      statusMsg.textContent = 'Opening your default mail app with this registration pre-filled for Ramon, Ethel, and Bree.';
+      statusMsg.textContent = '✓ You’re approved. Send the email that just opened to notify Ramon, Ethel, and Bree — you’re all set.';
       statusMsg.style.display = 'block';
       window.location.href = mailto;
     }}, [cfg.submitLabel]);
