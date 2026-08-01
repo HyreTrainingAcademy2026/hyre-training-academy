@@ -363,7 +363,7 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
     "admin-assistant": {
       minProjects: 3,
       unit: "completed admin operations projects",
-      examples: "an SOP you built and deployed, a ClickUp or systems workflow you own, a business-writing sample set, or a completed calendar/inbox overhaul",
+      examples: "an SOP you built and deployed, a project-management or systems workflow you own, a business-writing sample set, or a completed calendar/inbox overhaul",
     },
     "social-media": {
       minProjects: 3,
@@ -441,8 +441,8 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
     root.innerHTML = '';
     closeMobileNav();
     if(parts.length === 0){ renderHome(); highlightNav(''); return; }
-    if(parts[0] === 'modules'){ renderCatalog(); highlightNav('modules'); return; }
-    if(parts[0] === 'standards'){ renderStandards(); highlightNav('standards'); return; }
+    if(parts[0] === 'modules'){ location.hash = '#/portals'; return; }
+    if(parts[0] === 'standards'){ location.hash = '#/portals'; return; }
     if(parts[0] === 'about'){ renderAbout(); highlightNav('about'); return; }
     if(parts[0] === 'enrollment'){ renderEnrollment(); highlightNav('enrollment'); return; }
     if(parts[0] === 'portals'){ renderPortalChooser(); highlightNav('portals'); return; }
@@ -476,12 +476,10 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
         ]),
         h('button', {class:'navtoggle', onclick:function(){document.querySelector('.navlinks').classList.toggle('open');}}, ['Menu']),
         h('div', {class:'navlinks'}, [
-          h('a', {href:'#/modules', 'data-nav':'modules'}, ['Modules']),
-          h('a', {href:'#/standards', 'data-nav':'standards'}, ['Standards']),
           h('a', {href:'#/about', 'data-nav':'about'}, ['About']),
           h('a', {href:'#/enrollment', 'data-nav':'enrollment'}, ['Enrollment']),
           h('a', {href:'#/portals', 'data-nav':'portals'}, ['Portals']),
-          h('a', {href:'#/modules', 'data-nav':'', class:'nav-cta'}, ['Start Training'])
+          h('a', {href:'#/portals', 'data-nav':'', class:'nav-cta'}, ['Start Training'])
         ])
       ])
     ]);
@@ -496,19 +494,6 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
           h('div', {}, [
             h('div', {class:'brand'}, [h('img',{class:'brand-mark-icon',src:'data:image/png;base64,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',alt:'Hyre'}), h('span',{},['Hyre Training Academy'])]),
             h('p', {style:'max-width:280px;margin-top:12px;color:var(--text-faint)'}, ['Enterprise-grade curriculum. Built to create real capability, not certificates for their own sake.'])
-          ]),
-          h('div', {class:'footer-cols'}, [
-            h('div', {class:'footer-col'}, [
-              h('h5', {}, ['Academy']),
-              h('a', {href:'#/modules'}, ['All Modules']),
-              h('a', {href:'#/standards'}, ['Training Standards']),
-              h('a', {href:'#/about'}, ['About the Academy']),
-              h('a', {href:'#/enrollment'}, ['Enrollment']),
-              h('a', {href:'#/portals'}, ['Portals'])
-            ]),
-            h('div', {class:'footer-col'}, [h('h5', {}, ['Modules'])].concat(
-              MODULE_ORDER.map(function(s){ return h('a', {href:'#/module/'+s}, [MODULES[s].short]); })
-            ))
           ])
         ]),
         h('div', {class:'footer-bottom'}, ['© 2026 Hyre. This academy grows when the team grows. Every new role, every new capability gap: built here, tested here, certified here.'])
@@ -524,45 +509,20 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
         h('span', {class:'eyebrow'}, [h('span',{class:'dot'}), 'Hyre Training Academy']),
         h('h1', {}, ['This is where Hyre builds ', h('em',{},['operators']), ', not order-takers.']),
         h('p', {class:'lede'}, ['Every role gets a real curriculum, a certification bar, and a portal built just for them. No filler courses. No checkbox training. Built to produce professionals who are client-ready on day one and irreplaceable by month three.']),
-        h('div', {class:'hero-actions'}, [
+        h('div', {style:'margin-top:32px;padding-top:28px;border-top:1px solid var(--border);max-width:640px;'}, [
+          h('span', {class:'section-tag'}, ['Where You Start']),
+          h('h2', {style:'font-size:24px;margin:6px 0 10px;'}, ['One academy. Three ways in.']),
+          h('p', {style:'margin:0;color:var(--text-dim);font-size:15px;'}, ['VAs train. Clients verify. Operations approves. Everyone gets the exact view they need, built for them, and nothing they don’t.'])
+        ]),
+        h('div', {class:'hero-actions', style:'margin-top:24px;'}, [
           h('a', {class:'btn btn-primary', href:'#/portals'}, ['Enter Your Portal →']),
-          h('a', {class:'btn btn-ghost', href:'#/standards'}, ['See the Standard'])
+          h('a', {class:'btn btn-ghost', href:'#/about'}, ['About the Academy'])
         ]),
         h('div', {class:'hero-stats'}, [
           h('div', {class:'hero-stat'}, [h('div',{class:'num'},['3']), h('div',{class:'label'},['Dedicated Portals'])]),
           h('div', {class:'hero-stat'}, [h('div',{class:'num'},[String(totalVolumes)]), h('div',{class:'label'},['Total Training Volumes'])]),
           h('div', {class:'hero-stat'}, [h('div',{class:'num'},['7']), h('div',{class:'label'},['Mandatory Quality Standards'])]),
           h('div', {class:'hero-stat'}, [h('div',{class:'num'},['80%']), h('div',{class:'label'},['Certification Pass Bar'])])
-        ])
-      ])
-    ]);
-
-    var portalsSection = h('section', {}, [
-      h('div', {class:'wrap'}, [
-        h('div', {class:'section-head'}, [
-          h('span', {class:'section-tag'}, ['Where You Start']),
-          h('h2', {}, ['One academy. Three ways in.']),
-          h('p', {class:'section-desc'}, ['VAs train. Clients verify. Operations approves. Everyone gets the exact view they need, built for them, and nothing they don’t.'])
-        ]),
-        h('div', {class:'portal-grid portal-grid-home'}, [
-          h('a', {class:'portal-card portal-card-home', href:'#/portal/va'}, [
-            h('div', {class:'portal-icon'}, ['VA']),
-            h('h3', {}, ['VA Portal']),
-            h('p', {style:'color:var(--text-dim);font-size:14.5px;margin:0;'}, ['For active Hyre VAs. Every module, every volume, every requirement between you and certification, tracked in one place. Show up and do the work. This is where it counts.']),
-            h('span', {class:'btn btn-sm btn-ghost', style:'align-self:flex-start;margin-top:8px;'}, ['Enter the VA Portal →'])
-          ]),
-          h('a', {class:'portal-card portal-card-home', href:'#/portal/client'}, [
-            h('div', {class:'portal-icon', style:'background:'+THEME['paid-ads'].color+';'}, ['CL']),
-            h('h3', {}, ['Client Portal']),
-            h('p', {style:'color:var(--text-dim);font-size:14.5px;margin:0;'}, ['For active Hyre clients. See exactly what your VA is trained and certified in, and the bar they had to clear to earn it. No guessing what "trained" means here.']),
-            h('span', {class:'btn btn-sm btn-ghost', style:'align-self:flex-start;margin-top:8px;'}, ['Enter the Client Portal →'])
-          ]),
-          h('a', {class:'portal-card portal-card-home', href:'#/portal/internal'}, [
-            h('div', {class:'portal-icon', style:'background:'+THEME['articulation'].color+';'}, ['OP']),
-            h('h3', {}, ['Internal Portal']),
-            h('p', {style:'color:var(--text-dim);font-size:14.5px;margin:0;'}, ['For Hyre Operations. Approve enrollment, enforce the standard, and keep the whole academy running the way it is supposed to.']),
-            h('span', {class:'btn btn-sm btn-ghost', style:'align-self:flex-start;margin-top:8px;'}, ['Enter the Internal Portal →'])
-          ])
         ])
       ])
     ]);
@@ -594,17 +554,12 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
       h('div', {class:'wrap'}, [
         h('div', {class:'cta-band'}, [
           h('h2', {}, ['A weak operator waits for instructions.']),
-          h('p', {}, ['A strong one already knows which door is theirs. Find your portal and get to work. This academy produces the second kind.']),
-          h('div', {class:'cta-actions'}, [
-            h('a', {class:'btn btn-primary', href:'#/portals'}, ['Enter Your Portal →']),
-            h('a', {class:'btn btn-ghost', href:'#/about'}, ['How This Academy Works'])
-          ])
+          h('p', {}, ['A strong one already knows what needs to happen next, and does it before anyone has to ask. That is the standard here. It does not bend for tenure, title, or a bad day.'])
         ])
       ])
     ]);
 
     root.appendChild(hero);
-    root.appendChild(portalsSection);
     root.appendChild(pillars);
     root.appendChild(ctaBand);
     root.appendChild(renderFooter());
@@ -651,7 +606,7 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
     var t = THEME[slug];
     var hero = h('div', {class:'module-hero'}, [
       h('div', {class:'wrap'}, [
-        h('div', {class:'breadcrumb'}, [h('a',{href:'#/modules'},['Modules']), ' / ', m.short]),
+        h('div', {class:'breadcrumb'}, [h('a',{href:'#/portals'},['Portals']), ' / ', m.short]),
         h('div', {class:'module-hero-top'}, [
           chip(slug, 52),
           h('div', {}, [
@@ -984,30 +939,93 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
 
   // ---------------- About Page ----------------
   function renderAbout(){
-    var sec = h('div', {class:'module-hero'}, [
+    var hero = h('div', {class:'module-hero'}, [
       h('div', {class:'wrap'}, [
         h('span', {class:'eyebrow'}, [h('span',{class:'dot'}), 'About']),
-        h('h1', {style:'font-size:40px'}, ['How this academy works']),
-        h('p', {class:'lede'}, ['This is a living system, not a static document. Every page earns its place.'])
+        h('h1', {style:'font-size:40px'}, ['Built by operators, for operators.']),
+        h('p', {class:'lede'}, ['Hyre does not buy training off the shelf, and we do not outsource what makes our team good at the job. We build it ourselves, to a standard most training never bothers to meet.'])
       ])
     ]);
-    var body = h('section', {}, [
+
+    var whySec = h('section', {}, [
       h('div', {class:'wrap'}, [
-        h('div', {class:'content-prose', html: DATA.academyOverview.html})
+        h('div', {class:'section-head'}, [
+          h('span', {class:'section-tag'}, ['Why This Exists']),
+          h('h2', {}, ['Job-ready is not good enough. We build client-ready.'])
+        ]),
+        h('div', {class:'content-prose'}, [
+          h('p', {}, ['Every VA who joins Hyre inherits a reputation. Every client who works with Hyre inherits a promise: that whoever shows up on their team already knows how to do the job, not just talk about it. This academy is how we keep that promise at scale.']),
+          h('p', {}, ['No filler courses. No checkbox training. No participation certificates. If a track is live in this academy, it was built to produce someone who is client-ready on day one and irreplaceable by month three. That is the only bar that matters here.'])
+        ])
       ])
     ]);
-    root.appendChild(sec);
-    root.appendChild(body);
+
+    var whoSec = h('section', {class:'bordered-top bg-raised'}, [
+      h('div', {class:'wrap'}, [
+        h('div', {class:'section-head'}, [
+          h('span', {class:'section-tag'}, ['Who It Is Built For']),
+          h('h2', {}, ['Three roles. Three reasons this exists.'])
+        ]),
+        h('div', {class:'std-grid'}, [
+          ['VAs', 'You are not here to collect a certificate. You are here to become the person a client cannot picture the work without.'],
+          ['Clients', 'You should never have to guess what "trained" means. Every skill your VA has was earned against a real bar, not assumed.'],
+          ['Operations', 'The team behind the team. Every module that goes live here does so because it was held to the standard first.']
+        ].map(function(s){
+          return h('div', {class:'std-card'}, [
+            h('h4', {style:'margin:0 0 8px;font-size:16px;'}, [s[0]]),
+            h('p', {style:'margin:0;color:var(--text-dim);font-size:14.5px;'}, [s[1]])
+          ]);
+        }))
+      ])
+    ]);
+
+    var beliefSec = h('section', {}, [
+      h('div', {class:'wrap'}, [
+        h('div', {class:'section-head'}, [
+          h('span', {class:'section-tag'}, ['What We Believe']),
+          h('h2', {}, ['Capability is built, not hoped for.'])
+        ]),
+        h('div', {class:'pillar-grid'}, [
+          ['01', 'Real work, not theory', 'Every lesson ends in a skill you use that day. Nothing here is filler waiting to be forgotten.'],
+          ['02', 'Earned, not given', 'Certificates mean something because they were earned against a real bar, not handed out for attendance.'],
+          ['03', 'Built to grow', 'This academy grows when the team grows. Every new role and every new capability gap gets built here first.']
+        ].map(function(p){
+          return h('div', {class:'pillar'}, [
+            h('div', {class:'num'}, [p[0]]),
+            h('h4', {}, [p[1]]),
+            h('p', {}, [p[2]])
+          ]);
+        }))
+      ])
+    ]);
+
+    var ctaSec = h('section', {class:'bordered-top bg-raised'}, [
+      h('div', {class:'wrap'}, [
+        h('div', {class:'cta-band'}, [
+          h('h2', {}, ['Find out which door is yours.']),
+          h('p', {}, ['VAs train. Clients verify. Operations approves. Enter the portal built for you.']),
+          h('div', {class:'cta-actions'}, [
+            h('a', {class:'btn btn-primary', href:'#/portals'}, ['Enter Your Portal →'])
+          ])
+        ])
+      ])
+    ]);
+
+    root.appendChild(hero);
+    root.appendChild(whySec);
+    root.appendChild(whoSec);
+    root.appendChild(beliefSec);
+    root.appendChild(ctaSec);
     root.appendChild(renderFooter());
   }
 
   // ---------------- Enrollment ----------------
   var ROLE_MAP = [
-    ['Social Media Manager / Specialist', 'Social Media Management Academy', '6 chapters'],
-    ['Paid Ads / PPC / Digital Marketing', 'Paid Ads Specialist Academy', '8 volumes'],
-    ['Admin Assistant / Administrative', 'Admin Assistant Academy', '10 volumes'],
-    ['Executive Assistant / EA', 'Executive Assistant Academy', '10 volumes'],
-    ['Any role needing communication improvement', 'Articulation Training Academy', '8 volumes']
+    ['Social Media Manager / Specialist', 'Social Media Management Academy'],
+    ['Paid Ads / PPC / Digital Marketing', 'Paid Ads Specialist Academy'],
+    ['Admin Assistant / Administrative', 'Admin Assistant Academy'],
+    ['Executive Assistant / EA', 'Executive Assistant Academy'],
+    ['Any role needing communication improvement', 'Articulation Training Academy']
   ];
 
   function renderEnrollment(){
@@ -1031,18 +1049,37 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
       ])
     ]);
 
-    var howSec = h('section', {class:'bordered-top bg-raised'}, [
+    var byPortalSec = h('section', {class:'bordered-top bg-raised'}, [
+      h('div', {class:'wrap'}, [
+        h('div', {class:'section-head'}, [
+          h('span', {class:'section-tag'}, ['Enrollment, By Portal']),
+          h('h2', {}, ['Every portal has its own way in.']),
+          h('p', {class:'section-desc'}, ['Enrollment is not self-service sign-up. Hyre Operations verifies you, matches your role to a track, and builds your path before you ever log in.'])
+        ]),
+        h('div', {class:'std-grid'}, [
+          ['VA Portal', 'You are enrolled directly by Hyre Operations once your engagement is confirmed active. Your role decides your track, and once you are in, your modules are already waiting.'],
+          ['Client Portal', 'Access is granted automatically the moment your placement goes active. No sign-up needed: enter the Client Portal and look up your VA\'s track.'],
+          ['Internal Portal', 'Hyre Operations enrolls every new trainee from here. Confirm eligibility, match the role to a track, and approve access.']
+        ].map(function(s){
+          return h('div', {class:'std-card'}, [
+            h('h4', {style:'margin:0 0 8px;font-size:16px;'}, [s[0]]),
+            h('p', {style:'margin:0;color:var(--text-dim);font-size:14.5px;'}, [s[1]])
+          ]);
+        }))
+      ])
+    ]);
+
+    var howSec = h('section', {}, [
       h('div', {class:'wrap'}, [
         h('div', {class:'section-head'}, [
           h('span', {class:'section-tag'}, ['How Enrollment Works']),
-          h('h2', {}, ['Enrollment Eli routes every new trainee.']),
-          h('p', {class:'section-desc'}, ['Enrollment is not self-service sign-up. It runs through Hyre Operations and the academy\'s enrollment system, Enrollment Eli, which builds each trainee a paced learning path automatically.'])
+          h('h2', {}, ['Hyre Operations handles it, start to finish.'])
         ]),
         h('div', {class:'curriculum-list'}, [
-          ['1', 'Confirm eligibility', 'Your Hyre point of contact (recruiter, account manager, or Operations) confirms your active VA or client status.'],
-          ['2', 'Role is matched to a module', 'Your role determines your track, using the mapping below. If a role does not clearly map to a module, Operations asks rather than guesses.'],
-          ['3', 'Your learning path is built', 'A parent task is created under your name, with a subtask for every volume, paced one volume per week by default.'],
-          ['4', 'You get a welcome message', 'You are tagged with your full learning path and your first assignment, so you know exactly where to start.']
+          ['1', 'Confirm eligibility', 'Your Hyre point of contact confirms your active VA or client status.'],
+          ['2', 'Role is matched to a track', 'Your role determines your track, using the mapping below. If a role does not clearly map to one, Operations asks rather than guesses.'],
+          ['3', 'Your learning path is built', 'Every volume in your track gets queued in order, paced one volume per week by default.'],
+          ['4', 'You get a welcome message', 'You are notified with your full path and your first assignment, so you know exactly where to start.']
         ].map(function(s){
           return h('div', {class:'curric-row'}, [
             h('span', {class:'vnum'}, [s[0]]),
@@ -1053,31 +1090,28 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
       ])
     ]);
 
-    var mapSec = h('section', {}, [
+    var mapSec = h('section', {class:'bordered-top bg-raised'}, [
       h('div', {class:'wrap'}, [
         h('div', {class:'section-head'}, [
           h('span', {class:'section-tag'}, ['Role → Module Mapping']),
           h('h2', {}, ['Your role decides your track'])
         ]),
-        (function(){
-          var table = h('table', {}, [
-            h('thead', {}, [h('tr', {}, [h('th',{},['Role']), h('th',{},['Assigned Module']), h('th',{},['Length'])])]),
-            h('tbody', {}, ROLE_MAP.map(function(r){
-              return h('tr', {}, [h('td',{},[r[0]]), h('td',{},[r[1]]), h('td',{},[r[2]])]);
-            }))
+        h('div', {class:'curriculum-list'}, ROLE_MAP.map(function(r){
+          return h('div', {class:'curric-row'}, [
+            h('span', {class:'vtitle'}, [r[0]]),
+            h('span', {class:'vmeta', style:'flex:1;text-align:right;white-space:normal;color:var(--accent);font-weight:700;'}, ['→ ' + r[1]])
           ]);
-          return table;
-        })()
+        }))
       ])
     ]);
 
-    var ctaSec = h('section', {class:'bordered-top bg-raised'}, [
+    var ctaSec = h('section', {}, [
       h('div', {class:'wrap'}, [
         h('div', {class:'cta-band'}, [
           h('h2', {}, ['Already enrolled?']),
-          h('p', {}, ['Head straight to your module. If you are not sure you have access yet, check with your Hyre point of contact before starting.']),
+          h('p', {}, ['Head straight to your portal. If you are not sure you have access yet, check with your Hyre point of contact before starting.']),
           h('div', {class:'cta-actions'}, [
-            h('a', {class:'btn btn-primary', href:'#/modules'}, ['Go to Modules →'])
+            h('a', {class:'btn btn-primary', href:'#/portals'}, ['Go to Your Portal →'])
           ])
         ])
       ])
@@ -1085,6 +1119,7 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
 
     root.appendChild(hero);
     root.appendChild(eligibility);
+    root.appendChild(byPortalSec);
     root.appendChild(howSec);
     root.appendChild(mapSec);
     root.appendChild(ctaSec);
@@ -1306,13 +1341,13 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
           h('h2', {}, ['Access is revoked the moment employment status changes'])
         ]),
         h('div', {class:'policy-card'}, [
-          h('span', {class:'policy-tag'}, ['Policy · Requires Backend + Hubstaff API Integration']),
-          h('h4', {style:'margin:0 0 8px;font-size:16px;'}, ['Auto-reject on Hubstaff removal']),
+          h('span', {class:'policy-tag'}, ['Policy · Requires Backend Integration']),
+          h('h4', {style:'margin:0 0 8px;font-size:16px;'}, ['Auto-reject on employment status change']),
           h('p', {style:'margin:0 0 10px;color:var(--text-dim);font-size:14.5px;'}, [
-            'Non-negotiable rule: the moment a VA is removed from Hubstaff, their academy access is automatically revoked. No manual step, no grace period.'
+            'Non-negotiable rule: the moment a VA is no longer active, their academy access is automatically revoked. No manual step, no grace period.'
           ]),
           h('p', {style:'margin:0;color:var(--text-faint);font-size:13px;'}, [
-            'This is a written policy, not a live feature of this static site. Enforcing it for real requires a backend that polls or receives webhooks from the Hubstaff API and revokes the matching academy account automatically, the same way the Enrollment Eli, Nudge Nico, and Certificate Issuer agents already documented in this academy are specs awaiting deployment, not yet live automations.'
+            'This is a written policy, not a live feature of this static site. Enforcing it for real requires a backend that automatically revokes the matching academy account the moment employment status changes, the same way enrollment, progress nudges, and certificate issuance are specs awaiting deployment, not yet live automations.'
           ])
         ])
       ])
