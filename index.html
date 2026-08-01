@@ -221,11 +221,7 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
 .lms-nav-item:hover{background:var(--bg-card);color:var(--text);}
 .lms-nav-item.active{background:var(--bg-card);color:var(--accent);font-weight:700;}
 .lms-nav-item.sub{padding-left:26px;font-size:13px;}
-.lms-check{
-  width:16px;height:16px;border-radius:50%;border:1.5px solid var(--text-faint);flex-shrink:0;
-  display:flex;align-items:center;justify-content:center;font-size:10px;
-}
-.lms-nav-item.done .lms-check{background:var(--green);border-color:var(--green);color:#fff;}
+.lms-check{flex-shrink:0;display:block;}
 .lms-nav-item.done{color:var(--text-dim);}
 
 .lms-main{flex:1;min-width:0;}
@@ -403,6 +399,47 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
     return d;
   }
 
+  // Circular pie-progress indicator used for lesson/item completion state
+  // in every course. Hollow (empty track only) when not complete; a full,
+  // bright, thick purple ring when complete.
+  function renderProgressRing(isDone){
+    var size = 20, stroke = 4;
+    var radius = (size - stroke) / 2;
+    var circumference = 2 * Math.PI * radius;
+    var svgNS = 'http://www.w3.org/2000/svg';
+
+    var svg = document.createElementNS(svgNS, 'svg');
+    svg.setAttribute('class', 'lms-check' + (isDone ? ' done' : ''));
+    svg.setAttribute('width', size);
+    svg.setAttribute('height', size);
+    svg.setAttribute('viewBox', '0 0 ' + size + ' ' + size);
+
+    var track = document.createElementNS(svgNS, 'circle');
+    track.setAttribute('cx', size / 2);
+    track.setAttribute('cy', size / 2);
+    track.setAttribute('r', radius);
+    track.setAttribute('fill', 'none');
+    track.setAttribute('stroke-width', stroke);
+    track.style.stroke = 'rgba(122,118,168,0.3)';
+    svg.appendChild(track);
+
+    var arc = document.createElementNS(svgNS, 'circle');
+    arc.setAttribute('cx', size / 2);
+    arc.setAttribute('cy', size / 2);
+    arc.setAttribute('r', radius);
+    arc.setAttribute('fill', 'none');
+    arc.setAttribute('stroke-width', stroke);
+    arc.setAttribute('stroke-linecap', 'round');
+    arc.setAttribute('stroke-dasharray', circumference);
+    arc.setAttribute('stroke-dashoffset', isDone ? 0 : circumference);
+    arc.setAttribute('transform', 'rotate(-90 ' + (size / 2) + ' ' + (size / 2) + ')');
+    arc.style.stroke = 'var(--accent-hover)';
+    arc.style.transition = 'stroke-dashoffset .35s ease';
+    svg.appendChild(arc);
+
+    return svg;
+  }
+
   function buildNavItems(mod){
     // Returns flat ordered list of {id, title, groupTitle, kind, doc, sub}
     var items = [];
@@ -445,10 +482,10 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
     if(parts[0] === 'standards'){ location.hash = '#/portals'; return; }
     if(parts[0] === 'about'){ renderAbout(); highlightNav('about'); return; }
     if(parts[0] === 'enrollment'){ renderEnrollment(); highlightNav('enrollment'); return; }
-    if(parts[0] === 'portals'){ renderPortalChooser(); highlightNav('portals'); return; }
-    if(parts[0] === 'portal' && parts[1] === 'va'){ renderVAPortal(); highlightNav('portals'); return; }
-    if(parts[0] === 'portal' && parts[1] === 'client'){ renderClientPortal(); highlightNav('portals'); return; }
-    if(parts[0] === 'portal' && parts[1] === 'internal'){ renderInternalPortal(); highlightNav('portals'); return; }
+    if(parts[0] === 'portals'){ renderPortalChooser(); highlightNav('cta'); return; }
+    if(parts[0] === 'portal' && parts[1] === 'va'){ renderVAPortal(); highlightNav('cta'); return; }
+    if(parts[0] === 'portal' && parts[1] === 'client'){ renderClientPortal(); highlightNav('cta'); return; }
+    if(parts[0] === 'portal' && parts[1] === 'internal'){ renderInternalPortal(); highlightNav('cta'); return; }
     if(parts[0] === 'module' && parts[1] && MODULES[parts[1]]){ renderModuleDetail(parts[1]); highlightNav(''); return; }
     if(parts[0] === 'learn' && parts[1] && MODULES[parts[1]]){ renderLMS(parts[1], parts[2]); highlightNav(''); return; }
     renderNotFound();
@@ -479,7 +516,6 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
           h('a', {href:'#/', 'data-nav':'home'}, ['Home']),
           h('a', {href:'#/about', 'data-nav':'about'}, ['About']),
           h('a', {href:'#/enrollment', 'data-nav':'enrollment'}, ['Enrollment']),
-          h('a', {href:'#/portals', 'data-nav':'portals'}, ['Portals']),
           h('a', {href:'#/portals', 'data-nav':'cta', class:'nav-cta'}, ['Start Training'])
         ])
       ])
@@ -1415,7 +1451,7 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
           class:'lms-nav-item' + (isSub?' sub':'') + (it.id===activeId?' active':'') + (isDone?' done':''),
           onclick:function(){ location.hash = '#/learn/'+slug+'/'+it.id; }
         }, [
-          h('span', {class:'lms-check'}, [isDone?'✓':'']),
+          renderProgressRing(isDone),
           h('span', {}, [it.title])
         ]);
         grp.appendChild(row);
