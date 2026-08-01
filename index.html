@@ -54,9 +54,10 @@ button{font-family:inherit;cursor:pointer;}
 }
 .content-protected img{-webkit-user-drag:none;pointer-events:auto;}
 .protect-watermark{
+  /* background-image (the actual watermark pattern) is set inline via JS so it
+     can carry the viewer's identity once known -- see setWatermarkLabel() in app.js */
   position:fixed;inset:0;z-index:9999;pointer-events:none;
   background-repeat:repeat;
-  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='340' height='190'%3E%3Ctext x='0' y='120' font-family='Arial,Helvetica,sans-serif' font-size='16' fill='rgba(242,241,250,0.05)' transform='rotate(-28 170 95)'%3EHYRE ACADEMY %C2%B7 CONFIDENTIAL%3C/text%3E%3C/svg%3E");
 }
 @media print{
   body.content-protected *{display:none !important;}
@@ -1576,7 +1577,7 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
   // protection only for allowlisted emails. Until Access is actually live, that
   // fetch will simply fail (this URL isn't behind Access yet), so protection
   // correctly stays ON for everyone -- this fails safe, not open.
-  var EDITOR_EMAILS = ['ethel@hyreup.com']; // TODO: add Derek's email once confirmed
+  var EDITOR_EMAILS = ['ethel@hyreup.com', 'derek@hyreup.com'];
 
   var protectionHandlers = {
     contextmenu: function(e){ e.preventDefault(); },
@@ -1593,12 +1594,34 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
   };
   var protectWatermarkEl = null;
 
+  // The watermark stays in the DOM at all times (non-negotiable per policy) but
+  // is rendered at an extremely low, near-zero opacity so it reads as invisible
+  // under normal viewing -- not literally opacity:0, which would make it
+  // pointless, but faint enough that it will not visibly clutter the page while
+  // still being physically present in whatever pixels get captured. Once a
+  // viewer's identity is known (via Cloudflare Access), their email and the
+  // date get woven into the pattern, so a leaked screenshot can be traced back
+  // to who viewed it -- brightness/contrast on the captured image recovers it.
+  function watermarkDataUri(label){
+    var svg = "<svg xmlns='http://www.w3.org/2000/svg' width='340' height='190'>" +
+      "<text x='0' y='120' font-family='Arial,Helvetica,sans-serif' font-size='13' " +
+      "fill='rgba(242,241,250,0.012)' transform='rotate(-28 170 95)'>" + label + "</text></svg>";
+    return 'data:image/svg+xml,' + encodeURIComponent(svg);
+  }
+
+  function setWatermarkLabel(label){
+    if(protectWatermarkEl){
+      protectWatermarkEl.style.backgroundImage = "url(\"" + watermarkDataUri(label) + "\")";
+    }
+  }
+
   function applyContentProtection(){
     Object.keys(protectionHandlers).forEach(function(evt){
       document.addEventListener(evt, protectionHandlers[evt]);
     });
     if(!protectWatermarkEl){
       protectWatermarkEl = h('div', {class:'protect-watermark', 'aria-hidden':'true'});
+      setWatermarkLabel('HYRE ACADEMY · CONFIDENTIAL');
     }
     if(!protectWatermarkEl.parentNode){
       document.body.appendChild(protectWatermarkEl);
@@ -1623,9 +1646,12 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
         var email = identity && identity.email ? String(identity.email).toLowerCase() : '';
         if(email && EDITOR_EMAILS.indexOf(email) !== -1){
           removeContentProtection();
+        } else if(email){
+          var stamp = new Date().toISOString().slice(0,10);
+          setWatermarkLabel('HYRE ACADEMY · CONFIDENTIAL · ' + email + ' · ' + stamp);
         }
       })
-      .catch(function(){ /* not behind Access (yet) -- stay protected */ });
+      .catch(function(){ /* not behind Access (yet) -- stay protected, generic label */ });
   }
 
   applyContentProtection();
