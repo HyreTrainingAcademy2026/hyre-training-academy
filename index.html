@@ -1341,6 +1341,13 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
   // Direct link to the academy, baked into every registration email so whoever
   // approves it never has to go dig it up separately.
   var SITE_URL = 'https://hyretrainingacademy2026.github.io/hyre-training-academy/';
+  // Same Apps Script Web App the enrollee gate below reads from (GET) is
+  // also where registrations are written TO (POST) -- one endpoint, two
+  // verbs. Submitting a portal form appends a Pending row to the sheet and
+  // emails Bree/Ramon/Ethel automatically; nothing depends on the visitor's
+  // own device having a mail client configured. If this call fails for any
+  // reason, the form falls back to the old mailto draft so nothing is lost.
+  var REGISTRATION_ENDPOINT_URL = APPROVED_EMAILS_CSV_URL;
 
   function buildRegistrationForm(cfg){
     var card = h('div', {class:'std-card', style:'max-width:560px;border-color:var(--accent);'});
@@ -1387,17 +1394,53 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
         statusMsg.style.display = 'none';
         return;
       }
-      var subject = cfg.subject(values);
-      var body = cfg.body(values);
-      var mailto = 'mailto:' + REGISTRATION_NOTIFY_EMAILS.join(',') + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
-      statusMsg.textContent = '✓ You’re approved. Send the email that just opened to notify Hyre Training Academy — you’re all set.';
-      statusMsg.style.display = 'block';
-      window.location.href = mailto;
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Submitting…';
+      statusMsg.style.display = 'none';
+
+      var fallbackToMailto = function(){
+        var subject = cfg.subject(values);
+        var body = cfg.body(values);
+        var mailto = 'mailto:' + REGISTRATION_NOTIFY_EMAILS.join(',') + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
+        statusMsg.textContent = 'Could not reach the registration system automatically. An email draft just opened instead — please hit send in your mail app to notify Hyre Operations.';
+        statusMsg.style.background = 'rgba(230,168,46,0.12)';
+        statusMsg.style.borderColor = 'var(--yellow, #e6a82e)';
+        statusMsg.style.color = 'var(--yellow, #e6a82e)';
+        statusMsg.style.display = 'block';
+        submitBtn.disabled = false;
+        submitBtn.textContent = cfg.submitLabel;
+        window.location.href = mailto;
+      };
+
+      if(!REGISTRATION_ENDPOINT_URL){
+        fallbackToMailto();
+        return;
+      }
+
+      var payload = {
+        name: values.name || values.company || '',
+        company: values.company || '',
+        email: values.email || values.companyEmail || '',
+        portalType: cfg.portalType || ''
+      };
+
+      fetch(REGISTRATION_ENDPOINT_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: {'Content-Type': 'text/plain;charset=utf-8'},
+        body: JSON.stringify(payload)
+      }).then(function(){
+        statusMsg.textContent = '✓ Registration submitted and logged automatically. Hyre Operations has been notified and will confirm your access shortly — you\'ll get an email once approved.';
+        statusMsg.style.display = 'block';
+        submitBtn.textContent = 'Submitted ✓';
+      }).catch(function(){
+        fallbackToMailto();
+      });
     }}, [cfg.submitLabel]);
     card.appendChild(submitBtn);
 
     card.appendChild(h('p', {style:'margin:12px 0 0;color:var(--text-faint);font-size:12px;'}, [
-      'This static site can\'t verify these details against Hyre\'s live records or post a workspace notification on its own. Submitting opens a pre-filled email to Hyre Operations in your default mail app: you still need to hit send there.'
+      'Submitting logs your registration directly with Hyre Operations and unlocks your access automatically once approved — no extra steps needed on your end.'
     ]));
 
     return card;
@@ -1459,6 +1502,7 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
           title: 'Register for the VA Portal',
           intro: 'Submitting notifies Hyre Operations of your registration request.',
           submitLabel: 'Submit Registration →',
+          portalType: 'VA',
           fields: [
             {
               key: 'name', label: 'Full Name', placeholder: 'Jane Dela Cruz',
@@ -1504,6 +1548,7 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
           title: 'Register for the Client Portal',
           intro: 'Submitting notifies Hyre Operations of your registration request.',
           submitLabel: 'Submit Registration →',
+          portalType: 'Client',
           fields: [
             {
               key: 'company', label: 'Company Name', placeholder: 'Acme Inc.',
@@ -1552,6 +1597,7 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
           title: 'Register for the Internal Portal',
           intro: 'Submitting notifies Hyre Operations of your registration request.',
           submitLabel: 'Submit Registration →',
+          portalType: 'Internal',
           fields: [
             {
               key: 'name', label: 'Full Name', placeholder: 'Jane Dela Cruz',
