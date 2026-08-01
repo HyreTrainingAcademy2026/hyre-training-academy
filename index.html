@@ -547,6 +547,14 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
         return;
       }
       maybeRecheckVerification(); // non-blocking background re-check, doesn't hold up this render
+      // The Client Portal has no courses built yet -- keep client logins on
+      // the dashboard (which shows the "no courses yet" holding message)
+      // instead of letting a direct link into module/learn/certificate
+      // content through.
+      if(parts[0] !== 'dashboard' && getVerifiedPortalType().trim().toLowerCase() === 'client'){
+        location.hash = '#/dashboard';
+        return;
+      }
     }
     if(parts[0] === 'modules'){ location.hash = '#/dashboard'; return; }
     if(parts[0] === 'standards'){ location.hash = '#/portals'; return; }
@@ -579,6 +587,7 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
   var APPROVED_EMAILS_CSV_URL = 'https://script.google.com/macros/s/AKfycbw4CKv519X7vhv3qr85A5IqI4xpsw5IJGbCUYQCpCM16CC1lRUYOebh0Ckq3bUEeP7F/exec';
   var ENROLLEE_GATE_KEY = 'hyre-enrollee-verified-email';
   var ENROLLEE_GATE_TS_KEY = 'hyre-enrollee-verified-at';
+  var ENROLLEE_GATE_PORTAL_KEY = 'hyre-enrollee-verified-portal';
   var RECHECK_INTERVAL_MS = 24 * 60 * 60 * 1000; // re-validate against the live list once a day
   var approvedEmailsCache = null;
 
@@ -589,14 +598,18 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
   function getVerifiedEmail(){
     try { return localStorage.getItem(ENROLLEE_GATE_KEY) || ''; } catch(e){ return ''; }
   }
-  function setVerifiedEmail(email){
+  function setVerifiedEmail(email, portalType){
     try {
       localStorage.setItem(ENROLLEE_GATE_KEY, email);
       localStorage.setItem(ENROLLEE_GATE_TS_KEY, String(Date.now()));
+      if(portalType) localStorage.setItem(ENROLLEE_GATE_PORTAL_KEY, portalType);
     } catch(e){}
   }
+  function getVerifiedPortalType(){
+    try { return localStorage.getItem(ENROLLEE_GATE_PORTAL_KEY) || ''; } catch(e){ return ''; }
+  }
   function clearVerifiedEmail(){
-    try { localStorage.removeItem(ENROLLEE_GATE_KEY); localStorage.removeItem(ENROLLEE_GATE_TS_KEY); } catch(e){}
+    try { localStorage.removeItem(ENROLLEE_GATE_KEY); localStorage.removeItem(ENROLLEE_GATE_TS_KEY); localStorage.removeItem(ENROLLEE_GATE_PORTAL_KEY); } catch(e){}
   }
 
   function fetchApprovedEmails(){
@@ -667,7 +680,7 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
       err.style.display = 'none';
       loginRequest(email, password).then(function(result){
         if(result && result.ok){
-          setVerifiedEmail(email);
+          setVerifiedEmail(email, result.portalType || '');
           onVerified();
           return;
         }
@@ -764,8 +777,7 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
           h('p', {style:'margin:0;color:var(--text-dim);font-size:15px;'}, ['VAs train. Clients verify. Operations approves. Everyone gets the exact view they need, built for them, and nothing they don’t.'])
         ]),
         h('div', {class:'hero-actions', style:'margin-top:24px;'}, [
-          h('a', {class:'btn btn-primary', href:'#/portals'}, ['Enter Your Portal →']),
-          h('a', {class:'btn btn-ghost', href:'#/about'}, ['About the Academy'])
+          h('a', {class:'btn btn-primary', href:'#/portals'}, ['Enter Your Portal →'])
         ]),
         h('div', {class:'hero-stats'}, [
           h('div', {class:'hero-stat'}, [h('div',{class:'num'},['3']), h('div',{class:'label'},['Dedicated Portals'])]),
@@ -858,13 +870,21 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
   // renderSidebar / renderLMS / renderCertificate below).
   function renderDashboard(){
     var email = getVerifiedEmail();
+    // The Client Portal has no courses built yet. Only VA and Internal
+    // enrollees see the module grid -- a Client login (or any portal type
+    // we don't recognize as having live courses) gets a holding message
+    // instead. When client courses exist, add their portal type check here.
+    var isClientPortal = getVerifiedPortalType().trim().toLowerCase() === 'client';
+
     var hero = h('div', {class:'module-hero'}, [
       h('div', {class:'wrap'}, [
         h('span', {class:'eyebrow'}, [h('span',{class:'dot'}), 'Your Training']),
         h('h1', {style:'font-size:38px'}, ['Welcome back.']),
         h('p', {class:'lede'}, [
           (email ? ('Logged in as ' + email + '. ') : ''),
-          'Every module you\'re cleared for is below. Lessons, quizzes, and assessments unlock in order -- finish one to open the next -- and each certificate unlocks once its module\'s requirements are met.'
+          isClientPortal
+            ? 'Client training modules are not live yet.'
+            : 'Every module you\'re cleared for is below. Lessons, quizzes, and assessments unlock in order -- finish one to open the next -- and each certificate unlocks once its module\'s requirements are met.'
         ]),
         h('a', {href:'#', style:'display:inline-block;margin-top:14px;color:var(--text-faint);font-size:13px;', onclick:function(e){
           e.preventDefault();
@@ -873,16 +893,30 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
         }}, ['Log out'])
       ])
     ]);
-    var sec = h('section', {style:'padding-top:8px'}, [
-      h('div', {class:'wrap'}, [
-        h('div', {class:'section-head'}, [
-          h('span', {class:'section-tag'}, ['All Modules']),
-          h('h2', {}, ['Five tracks. Zero filler.']),
-          h('p', {class:'section-desc'}, ['Pick up any module below. Complete each lesson and pass its quiz at 80% or above to move to the next step; portfolio-backed modules also require the minimum completed projects before certification.'])
-        ]),
-        h('div', {class:'module-grid'}, MODULE_ORDER.map(renderModuleCard))
-      ])
-    ]);
+
+    var sec;
+    if(isClientPortal){
+      sec = h('section', {style:'padding-top:8px'}, [
+        h('div', {class:'wrap'}, [
+          h('div', {class:'std-card', style:'max-width:640px;text-align:center;padding:48px 32px;margin:0 auto;'}, [
+            h('h2', {style:'margin:0 0 12px;'}, ['No courses available yet']),
+            h('p', {style:'color:var(--text-dim);margin:0;'}, ['Hyre Operations hasn\'t published client training modules yet. Check back once they\'re live -- you\'ll be notified when your curriculum is ready.'])
+          ])
+        ])
+      ]);
+    } else {
+      sec = h('section', {style:'padding-top:8px'}, [
+        h('div', {class:'wrap'}, [
+          h('div', {class:'section-head'}, [
+            h('span', {class:'section-tag'}, ['All Modules']),
+            h('h2', {}, ['Five tracks. Zero filler.']),
+            h('p', {class:'section-desc'}, ['Pick up any module below. Complete each lesson and pass its quiz at 80% or above to move to the next step; portfolio-backed modules also require the minimum completed projects before certification.'])
+          ]),
+          h('div', {class:'module-grid'}, MODULE_ORDER.map(renderModuleCard))
+        ])
+      ]);
+    }
+
     root.appendChild(hero);
     root.appendChild(sec);
     root.appendChild(renderFooter());
