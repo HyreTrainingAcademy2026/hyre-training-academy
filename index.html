@@ -440,7 +440,7 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
     var parts = parseHash();
     root.innerHTML = '';
     closeMobileNav();
-    if(parts.length === 0){ renderHome(); highlightNav(''); return; }
+    if(parts.length === 0){ renderHome(); highlightNav('home'); return; }
     if(parts[0] === 'modules'){ location.hash = '#/portals'; return; }
     if(parts[0] === 'standards'){ location.hash = '#/portals'; return; }
     if(parts[0] === 'about'){ renderAbout(); highlightNav('about'); return; }
@@ -476,10 +476,11 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
         ]),
         h('button', {class:'navtoggle', onclick:function(){document.querySelector('.navlinks').classList.toggle('open');}}, ['Menu']),
         h('div', {class:'navlinks'}, [
+          h('a', {href:'#/', 'data-nav':'home'}, ['Home']),
           h('a', {href:'#/about', 'data-nav':'about'}, ['About']),
           h('a', {href:'#/enrollment', 'data-nav':'enrollment'}, ['Enrollment']),
           h('a', {href:'#/portals', 'data-nav':'portals'}, ['Portals']),
-          h('a', {href:'#/portals', 'data-nav':'', class:'nav-cta'}, ['Start Training'])
+          h('a', {href:'#/portals', 'data-nav':'cta', class:'nav-cta'}, ['Start Training'])
         ])
       ])
     ]);
@@ -1020,14 +1021,6 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
   }
 
   // ---------------- Enrollment ----------------
-  var ROLE_MAP = [
-    ['Social Media Manager / Specialist', 'Social Media Management Academy'],
-    ['Paid Ads / PPC / Digital Marketing', 'Paid Ads Specialist Academy'],
-    ['Admin Assistant / Administrative', 'Admin Assistant Academy'],
-    ['Executive Assistant / EA', 'Executive Assistant Academy'],
-    ['Any role needing communication improvement', 'Articulation Training Academy']
-  ];
-
   function renderEnrollment(){
     var hero = h('div', {class:'module-hero'}, [
       h('div', {class:'wrap'}, [
@@ -1077,7 +1070,7 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
         ]),
         h('div', {class:'curriculum-list'}, [
           ['1', 'Confirm eligibility', 'Your Hyre point of contact confirms your active VA or client status.'],
-          ['2', 'Role is matched to a track', 'Your role determines your track, using the mapping below. If a role does not clearly map to one, Operations asks rather than guesses.'],
+          ['2', 'Role is matched to a track', 'Your role determines your track automatically. If a role does not clearly map to one, Operations asks rather than guesses.'],
           ['3', 'Your learning path is built', 'Every volume in your track gets queued in order, paced one volume per week by default.'],
           ['4', 'You get a welcome message', 'You are notified with your full path and your first assignment, so you know exactly where to start.']
         ].map(function(s){
@@ -1093,15 +1086,13 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
     var mapSec = h('section', {class:'bordered-top bg-raised'}, [
       h('div', {class:'wrap'}, [
         h('div', {class:'section-head'}, [
-          h('span', {class:'section-tag'}, ['Role → Module Mapping']),
+          h('span', {class:'section-tag'}, ['Role → Track Mapping']),
           h('h2', {}, ['Your role decides your track'])
         ]),
-        h('div', {class:'curriculum-list'}, ROLE_MAP.map(function(r){
-          return h('div', {class:'curric-row'}, [
-            h('span', {class:'vtitle'}, [r[0]]),
-            h('span', {class:'vmeta', style:'flex:1;text-align:right;white-space:normal;color:var(--accent);font-weight:700;'}, ['→ ' + r[1]])
-          ]);
-        }))
+        h('div', {class:'content-prose'}, [
+          h('p', {}, ['Nobody enrolls into a generic course. Your role determines the exact track you get, and Operations confirms the match before your path is built, so you land in the training built for the job you actually do, not the closest guess.']),
+          h('p', {}, ['If your role does not clearly map to an existing track, Operations asks rather than assigning one at random. Your portal shows you exactly what you have been enrolled in once access is granted.'])
+        ])
       ])
     ]);
 
@@ -1127,6 +1118,72 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
   }
 
   // ---------------- Portals ----------------
+  // Every new portal registration notifies this short list of Hyre Operations
+  // people. This static site cannot post workspace notifications on its own,
+  // so submission opens a pre-filled email as the best available substitute.
+  var REGISTRATION_NOTIFY_EMAILS = ['ramon@hyreup.com', 'ethel@hyreup.com', 'bree@hyreup.com'];
+
+  function buildRegistrationForm(cfg){
+    var card = h('div', {class:'std-card', style:'max-width:560px;border-color:var(--accent);'});
+    card.appendChild(h('div', {class:'std-num'}, ['REGISTRATION']));
+    card.appendChild(h('h4', {style:'margin:0 0 6px;font-size:17px;'}, [cfg.title]));
+    card.appendChild(h('p', {style:'margin:0 0 18px;color:var(--text-dim);font-size:13.5px;'}, [cfg.intro]));
+
+    var inputs = {};
+    var errorEls = {};
+
+    cfg.fields.forEach(function(f){
+      var field = h('div', {class:'form-field'}, [h('label', {}, [f.label])]);
+      var input = h('input', {type: f.type || 'text', placeholder: f.placeholder || ''});
+      field.appendChild(input);
+      if(f.help){
+        field.appendChild(h('div', {style:'font-size:12px;color:var(--text-faint);margin-top:-2px;'}, [f.help]));
+      }
+      var err = h('div', {style:'font-size:12.5px;color:var(--red);margin-top:2px;display:none;'});
+      field.appendChild(err);
+      card.appendChild(field);
+      inputs[f.key] = input;
+      errorEls[f.key] = err;
+    });
+
+    var statusMsg = h('div', {style:'font-size:13px;color:var(--accent);margin:2px 0 12px;display:none;'});
+    card.appendChild(statusMsg);
+
+    var submitBtn = h('button', {class:'btn btn-primary btn-block', onclick:function(){
+      var values = {};
+      var hasError = false;
+      cfg.fields.forEach(function(f){
+        var v = inputs[f.key].value.trim();
+        values[f.key] = v;
+        var msg = f.validate(v);
+        if(msg){
+          errorEls[f.key].textContent = msg;
+          errorEls[f.key].style.display = 'block';
+          hasError = true;
+        } else {
+          errorEls[f.key].style.display = 'none';
+        }
+      });
+      if(hasError){
+        statusMsg.style.display = 'none';
+        return;
+      }
+      var subject = cfg.subject(values);
+      var body = cfg.body(values);
+      var mailto = 'mailto:' + REGISTRATION_NOTIFY_EMAILS.join(',') + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
+      statusMsg.textContent = 'Opening your default mail app with this registration pre-filled for Ramon, Ethel, and Bree.';
+      statusMsg.style.display = 'block';
+      window.location.href = mailto;
+    }}, [cfg.submitLabel]);
+    card.appendChild(submitBtn);
+
+    card.appendChild(h('p', {style:'margin:12px 0 0;color:var(--text-faint);font-size:12px;'}, [
+      'This static site can\'t verify these details against Hyre\'s live records or post a workspace notification on its own. Submitting opens a pre-filled email to Hyre Operations in your default mail app: you still need to hit send there.'
+    ]));
+
+    return card;
+  }
+
   function renderPortalChooser(){
     var hero = h('div', {class:'module-hero'}, [
       h('div', {class:'wrap'}, [
@@ -1141,19 +1198,19 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
           h('a', {class:'portal-card', href:'#/portal/va'}, [
             h('div', {class:'portal-icon'}, ['VA']),
             h('h3', {}, ['VA Portal']),
-            h('p', {style:'color:var(--text-dim);font-size:14.5px;margin:0;'}, ['For active Hyre Virtual Assistants. Your modules, your progress, your certification requirements.']),
+            h('p', {style:'color:var(--text-dim);font-size:14.5px;margin:0;'}, ['For active Hyre Virtual Assistants. Register below and Operations confirms your access.']),
             h('span', {class:'btn btn-sm btn-ghost', style:'align-self:flex-start;margin-top:8px;'}, ['Enter →'])
           ]),
           h('a', {class:'portal-card', href:'#/portal/client'}, [
             h('div', {class:'portal-icon', style:'background:'+THEME['paid-ads'].color+';'}, ['CL']),
             h('h3', {}, ['Client Portal']),
-            h('p', {style:'color:var(--text-dim);font-size:14.5px;margin:0;'}, ['For active Hyre clients. See exactly what your VA is trained and certified in.']),
+            h('p', {style:'color:var(--text-dim);font-size:14.5px;margin:0;'}, ['For active Hyre clients. Register to verify what your VA is trained and certified in.']),
             h('span', {class:'btn btn-sm btn-ghost', style:'align-self:flex-start;margin-top:8px;'}, ['Enter →'])
           ]),
           h('a', {class:'portal-card', href:'#/portal/internal'}, [
             h('div', {class:'portal-icon', style:'background:'+THEME['articulation'].color+';'}, ['OP']),
             h('h3', {}, ['Internal Portal']),
-            h('p', {style:'color:var(--text-dim);font-size:14.5px;margin:0;'}, ['For Hyre Operations. Review and approve enrollment requests.']),
+            h('p', {style:'color:var(--text-dim);font-size:14.5px;margin:0;'}, ['For Hyre Operations. Register your internal access.']),
             h('span', {class:'btn btn-sm btn-ghost', style:'align-self:flex-start;margin-top:8px;'}, ['Enter →'])
           ])
         ])
@@ -1169,39 +1226,41 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
       h('div', {class:'wrap'}, [
         h('div', {class:'breadcrumb'}, [h('a',{href:'#/portals'},['Portals']), ' / VA Portal']),
         h('span', {class:'eyebrow'}, [h('span',{class:'dot'}), 'VA Portal']),
-        h('h1', {style:'font-size:38px'}, ['Your training, your record.']),
-        h('p', {class:'lede'}, ['Active Hyre VAs only. Pick up wherever you left off, and see exactly what stands between you and certification.'])
+        h('h1', {style:'font-size:38px'}, ['Register for VA access.']),
+        h('p', {class:'lede'}, ['Active Hyre VAs only. Register below and Hyre Operations confirms your access.'])
       ])
     ]);
-    var modGrid = h('section', {}, [
+    var formSec = h('section', {}, [
       h('div', {class:'wrap'}, [
         h('div', {class:'section-head'}, [
-          h('span', {class:'section-tag'}, ['Your Modules']),
-          h('h2', {}, ['Continue training'])
+          h('span', {class:'section-tag'}, ['VA Registration']),
+          h('h2', {}, ['Confirm who you are'])
         ]),
-        h('div', {class:'module-grid'}, MODULE_ORDER.map(function(slug){
-          var items = buildNavItems(MODULES[slug]);
-          var done = progressCount(slug, items);
-          var pct = Math.round((done/items.length)*100);
-          var req = PORTFOLIO_REQUIREMENTS[slug];
-          return h('div', {class:'module-card'}, [
-            chip(slug),
-            h('h3', {}, [MODULES[slug].name]),
-            h('div', {class:'progress-track'}, [h('div', {class:'progress-fill', style:'width:'+pct+'%'})]),
-            h('div', {class:'progress-label'}, [done + ' / ' + items.length + ' complete (' + pct + '%)']),
-            h('div', {class:'module-meta'}, [
-              h('span', {}, ['80% pass bar']),
-              req ? h('span', {}, [req.minProjects + ' projects required']) : h('span', {}, ['No portfolio required'])
-            ]),
-            h('div', {class:'card-actions'}, [
-              h('a', {class:'btn btn-sm btn-primary', href:'#/learn/'+slug}, [pct > 0 ? 'Resume →' : 'Start →'])
-            ])
-          ]);
-        }))
+        buildRegistrationForm({
+          title: 'Register for the VA Portal',
+          intro: 'Submitting notifies Hyre Operations of your registration request.',
+          submitLabel: 'Submit Registration →',
+          fields: [
+            {
+              key: 'name', label: 'Full Name', placeholder: 'Jane Dela Cruz',
+              help: 'Enter it exactly as it appears in the system Hyre uses to track your work hours.',
+              validate: function(v){ return v ? null : 'Enter your full name to continue.'; }
+            },
+            {
+              key: 'email', label: 'Email Address', type: 'email', placeholder: 'jane@example.com',
+              help: 'Use the address on file in the system Hyre uses for HR and payroll.',
+              validate: function(v){ return /\S+@\S+\.\S+/.test(v) ? null : 'Enter a valid email address.'; }
+            }
+          ],
+          subject: function(v){ return 'VA Portal Registration — ' + v.name; },
+          body: function(v){
+            return 'VA Portal registration request.\n\nFull Name: ' + v.name + '\nEmail: ' + v.email + '\n\nSubmitted via Hyre Training Academy VA Portal.';
+          }
+        })
       ])
     ]);
     root.appendChild(hero);
-    root.appendChild(modGrid);
+    root.appendChild(formSec);
     root.appendChild(renderFooter());
   }
 
@@ -1210,41 +1269,44 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
       h('div', {class:'wrap'}, [
         h('div', {class:'breadcrumb'}, [h('a',{href:'#/portals'},['Portals']), ' / Client Portal']),
         h('span', {class:'eyebrow'}, [h('span',{class:'dot'}), 'Client Portal']),
-        h('h1', {style:'font-size:38px'}, ['See exactly what your VA is trained in.']),
-        h('p', {class:'lede'}, ['Active Hyre clients only. Every module your VA can be certified in, and the bar they had to clear to get there.'])
+        h('h1', {style:'font-size:38px'}, ['Register for client access.']),
+        h('p', {class:'lede'}, ['Active Hyre clients only. Register below and Hyre Operations confirms your access.'])
       ])
     ]);
-    var standardsSec = h('section', {}, [
+    var formSec = h('section', {}, [
       h('div', {class:'wrap'}, [
         h('div', {class:'section-head'}, [
-          h('span', {class:'section-tag'}, ['What "Certified" Means']),
-          h('h2', {}, ['A certificate here is not a participation trophy'])
+          h('span', {class:'section-tag'}, ['Client Registration']),
+          h('h2', {}, ['Confirm your account'])
         ]),
-        h('div', {class:'std-grid'}, [
-          ['80% pass bar', 'Every volume quiz requires 80% to pass. No partial credit for showing up.'],
-          ['Completed projects', 'Where the role produces real work, certification also requires a minimum number of completed projects, not just quiz scores.'],
-          ['WCAG 2.1 AA training materials', 'Your VA trained on accessible, professionally built material, the same standard used industry-wide.'],
-          ['Competency-mapped', 'Every chapter your VA completed maps to a specific, named job competency, not generic filler.']
-        ].map(function(s){
-          return h('div', {class:'std-card'}, [
-            h('h4', {style:'margin:0 0 8px;font-size:16px;'}, [s[0]]),
-            h('p', {style:'margin:0;color:var(--text-dim);font-size:14px;'}, [s[1]])
-          ]);
-        }))
-      ])
-    ]);
-    var modGrid = h('section', {class:'bordered-top bg-raised'}, [
-      h('div', {class:'wrap'}, [
-        h('div', {class:'section-head'}, [
-          h('span', {class:'section-tag'}, ['Available Tracks']),
-          h('h2', {}, ['Modules your VA may be certified in'])
-        ]),
-        h('div', {class:'module-grid'}, MODULE_ORDER.map(renderModuleCard))
+        buildRegistrationForm({
+          title: 'Register for the Client Portal',
+          intro: 'Submitting notifies Hyre Operations of your registration request.',
+          submitLabel: 'Submit Registration →',
+          fields: [
+            {
+              key: 'company', label: 'Company Name', placeholder: 'Acme Inc.',
+              validate: function(v){ return v ? null : 'Enter your company name.'; }
+            },
+            {
+              key: 'companyEmail', label: 'Company Email Address', type: 'email', placeholder: 'you@company.com',
+              help: 'We\'ll check this against the records Hyre keeps for active client accounts.',
+              validate: function(v){ return /\S+@\S+\.\S+/.test(v) ? null : 'Enter a valid company email address.'; }
+            },
+            {
+              key: 'name', label: 'Full Name', placeholder: 'Jane Smith',
+              validate: function(v){ return v ? null : 'Enter your full name to continue.'; }
+            }
+          ],
+          subject: function(v){ return 'Client Portal Registration — ' + v.company; },
+          body: function(v){
+            return 'Client Portal registration request.\n\nCompany Name: ' + v.company + '\nCompany Email: ' + v.companyEmail + '\nFull Name: ' + v.name + '\n\nSubmitted via Hyre Training Academy Client Portal.';
+          }
+        })
       ])
     ]);
     root.appendChild(hero);
-    root.appendChild(standardsSec);
-    root.appendChild(modGrid);
+    root.appendChild(formSec);
     root.appendChild(renderFooter());
   }
 
@@ -1253,110 +1315,41 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
       h('div', {class:'wrap'}, [
         h('div', {class:'breadcrumb'}, [h('a',{href:'#/portals'},['Portals']), ' / Internal Portal']),
         h('span', {class:'eyebrow'}, [h('span',{class:'dot'}), 'Internal Portal']),
-        h('h1', {style:'font-size:38px'}, ['Operations control center.']),
-        h('p', {class:'lede'}, ['Hyre Operations only. Review enrollment requests and the access-control rules that govern this academy.'])
+        h('h1', {style:'font-size:38px'}, ['Register for internal access.']),
+        h('p', {class:'lede'}, ['Hyre Operations only. Register below and access is confirmed from here.'])
       ])
     ]);
-
-    var modGrid = h('section', {}, [
+    var formSec = h('section', {}, [
       h('div', {class:'wrap'}, [
         h('div', {class:'section-head'}, [
-          h('span', {class:'section-tag'}, ['All Academy Tracks']),
-          h('h2', {}, ['Every track operations can approve']),
-          h('p', {class:'section-desc'}, ['The tracks currently live in this academy. Every enrollment request must map to one of these, no exceptions.'])
+          h('span', {class:'section-tag'}, ['Internal Registration']),
+          h('h2', {}, ['Confirm who you are'])
         ]),
-        h('div', {class:'module-grid'}, MODULE_ORDER.map(renderModuleCard))
+        buildRegistrationForm({
+          title: 'Register for the Internal Portal',
+          intro: 'Submitting notifies Hyre Operations of your registration request.',
+          submitLabel: 'Submit Registration →',
+          fields: [
+            {
+              key: 'name', label: 'Full Name', placeholder: 'Jane Dela Cruz',
+              help: 'Enter it exactly as it appears in the system Hyre uses to track your work hours.',
+              validate: function(v){ return v ? null : 'Enter your full name to continue.'; }
+            },
+            {
+              key: 'email', label: 'Email Address', type: 'email', placeholder: 'jane@example.com',
+              help: 'Use the address on file in the system Hyre uses for HR and payroll.',
+              validate: function(v){ return /\S+@\S+\.\S+/.test(v) ? null : 'Enter a valid email address.'; }
+            }
+          ],
+          subject: function(v){ return 'Internal Portal Registration — ' + v.name; },
+          body: function(v){
+            return 'Internal Portal registration request.\n\nFull Name: ' + v.name + '\nEmail: ' + v.email + '\n\nSubmitted via Hyre Training Academy Internal Portal.';
+          }
+        })
       ])
     ]);
-
-    var formSec = h('section', {class:'bordered-top bg-raised'});
-    var formWrap = h('div', {class:'wrap'});
-    var formCard = h('div', {class:'std-card', style:'max-width:560px;border-color:var(--accent);'});
-    var nameInput, emailInput, roleSelect, statusMsg;
-
-    function buildForm(){
-      formCard.innerHTML = '';
-      formCard.appendChild(h('div', {class:'std-num'}, ['ENROLLMENT REQUEST']));
-      formCard.appendChild(h('h4', {style:'margin:0 0 6px;font-size:17px;'}, ['Submit a new enrollment request']));
-      formCard.appendChild(h('p', {style:'margin:0 0 18px;color:var(--text-dim);font-size:13.5px;'}, [
-        'Submitting opens a pre-filled, urgent-priority email to ethel@hyreup.com in your default mail app. You still need to hit send there, this static site cannot send email on its own.'
-      ]));
-
-      var nameField = h('div', {class:'form-field'}, [h('label',{},['Full Name'])]);
-      nameInput = h('input', {type:'text', placeholder:'Jane Dela Cruz'});
-      nameField.appendChild(nameInput);
-
-      var emailField = h('div', {class:'form-field'}, [h('label',{},['Email Address'])]);
-      emailInput = h('input', {type:'email', placeholder:'jane@example.com'});
-      emailField.appendChild(emailInput);
-
-      var roleField = h('div', {class:'form-field'}, [h('label',{},['Requested Track'])]);
-      roleSelect = h('select', {}, MODULE_ORDER.map(function(s){
-        var opt = h('option', {value:s}, [MODULES[s].name]);
-        return opt;
-      }));
-      roleField.appendChild(roleSelect);
-
-      statusMsg = h('div', {style:'font-size:13px;color:var(--red);display:none;margin-bottom:10px;'});
-
-      var submitBtn = h('button', {class:'btn btn-primary btn-block', onclick:function(){
-        var name = nameInput.value.trim();
-        var email = emailInput.value.trim();
-        var emailOk = /\S+@\S+\.\S+/.test(email);
-        if(!name || !emailOk){
-          statusMsg.textContent = 'Enter a full name and a valid email address before submitting.';
-          statusMsg.style.display = 'block';
-          return;
-        }
-        statusMsg.style.display = 'none';
-        var moduleName = MODULES[roleSelect.value].name;
-        var subject = 'URGENT: Academy Enrollment Approval Request — ' + name;
-        var body = 'Enrollment approval requested.\n\n' +
-          'Full Name: ' + name + '\n' +
-          'Email: ' + email + '\n' +
-          'Requested Track: ' + moduleName + '\n\n' +
-          'Submitted via Hyre Training Academy Internal Portal.';
-        var mailto = 'mailto:ethel@hyreup.com?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
-        window.location.href = mailto;
-      }}, ['Send Urgent Approval Request →']);
-
-      formCard.appendChild(nameField);
-      formCard.appendChild(emailField);
-      formCard.appendChild(roleField);
-      formCard.appendChild(statusMsg);
-      formCard.appendChild(submitBtn);
-    }
-    buildForm();
-    formWrap.appendChild(h('div', {class:'section-head'}, [
-      h('span', {class:'section-tag'}, ['Enrollment Requests']),
-      h('h2', {}, ['New request'])
-    ]));
-    formWrap.appendChild(formCard);
-    formSec.appendChild(formWrap);
-
-    var policySec = h('section', {class:'bordered-top bg-raised'}, [
-      h('div', {class:'wrap'}, [
-        h('div', {class:'section-head'}, [
-          h('span', {class:'section-tag'}, ['Access Control Policy']),
-          h('h2', {}, ['Access is revoked the moment employment status changes'])
-        ]),
-        h('div', {class:'policy-card'}, [
-          h('span', {class:'policy-tag'}, ['Policy · Requires Backend Integration']),
-          h('h4', {style:'margin:0 0 8px;font-size:16px;'}, ['Auto-reject on employment status change']),
-          h('p', {style:'margin:0 0 10px;color:var(--text-dim);font-size:14.5px;'}, [
-            'Non-negotiable rule: the moment a VA is no longer active, their academy access is automatically revoked. No manual step, no grace period.'
-          ]),
-          h('p', {style:'margin:0;color:var(--text-faint);font-size:13px;'}, [
-            'This is a written policy, not a live feature of this static site. Enforcing it for real requires a backend that automatically revokes the matching academy account the moment employment status changes, the same way enrollment, progress nudges, and certificate issuance are specs awaiting deployment, not yet live automations.'
-          ])
-        ])
-      ])
-    ]);
-
     root.appendChild(hero);
-    root.appendChild(modGrid);
     root.appendChild(formSec);
-    root.appendChild(policySec);
     root.appendChild(renderFooter());
   }
 
