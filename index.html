@@ -540,6 +540,14 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
     closeMobileNav();
     document.body.classList.remove('printing-certificate');
     if(parts.length === 0){ renderHome(); highlightNav('home'); return; }
+    if(isCourseRoute(parts)){
+      if(!getVerifiedEmail()){
+        renderEnrolleeGate(function(){ navigate(); });
+        highlightNav('');
+        return;
+      }
+      maybeRecheckVerification(); // non-blocking background re-check, doesn't hold up this render
+    }
     if(parts[0] === 'modules'){ location.hash = '#/portals'; return; }
     if(parts[0] === 'standards'){ location.hash = '#/portals'; return; }
     if(parts[0] === 'about'){ renderAbout(); highlightNav('about'); return; }
@@ -554,6 +562,115 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
     renderNotFound();
   }
   window.addEventListener('hashchange', navigate);
+
+  // ---------------- Enrollee Course Gate ----------------
+  // Enrollees register through the portal forms; once Bree, Ramon, or Ethel
+  // marks them Approved in the shared Google Sheet, an Apps Script emails
+  // them automatically and adds their email to a published CSV this site
+  // checks against. Same honest caveat as everything else client-side on
+  // this site: this is a best-effort gate (keeps casual/unapproved visitors
+  // out of course content), not real server-side authentication -- someone
+  // deliberately opening dev tools can get past it, same as the content
+  // protection deterrents elsewhere on the site.
+  //
+  // Fails CLOSED: if the approved-list fetch errors out for any reason
+  // (network hiccup, URL not published yet), nobody is treated as approved.
+  var APPROVED_EMAILS_CSV_URL = 'https://script.google.com/macros/s/AKfycbw4CKv519X7vhv3qr85A5IqI4xpsw5IJGbCUYQCpCM16CC1lRUYOebh0Ckq3bUEeP7F/exec';
+  var ENROLLEE_GATE_KEY = 'hyre-enrollee-verified-email';
+  var ENROLLEE_GATE_TS_KEY = 'hyre-enrollee-verified-at';
+  var RECHECK_INTERVAL_MS = 24 * 60 * 60 * 1000; // re-validate against the live list once a day
+  var approvedEmailsCache = null;
+
+  function isCourseRoute(parts){
+    return parts[0] === 'module' || parts[0] === 'learn' || parts[0] === 'certificate';
+  }
+
+  function getVerifiedEmail(){
+    try { return localStorage.getItem(ENROLLEE_GATE_KEY) || ''; } catch(e){ return ''; }
+  }
+  function setVerifiedEmail(email){
+    try {
+      localStorage.setItem(ENROLLEE_GATE_KEY, email);
+      localStorage.setItem(ENROLLEE_GATE_TS_KEY, String(Date.now()));
+    } catch(e){}
+  }
+  function clearVerifiedEmail(){
+    try { localStorage.removeItem(ENROLLEE_GATE_KEY); localStorage.removeItem(ENROLLEE_GATE_TS_KEY); } catch(e){}
+  }
+
+  function fetchApprovedEmails(){
+    if(approvedEmailsCache) return Promise.resolve(approvedEmailsCache);
+    if(!APPROVED_EMAILS_CSV_URL) return Promise.resolve([]); // not configured yet -- fail closed
+    return fetch(APPROVED_EMAILS_CSV_URL, {cache:'no-store'})
+      .then(function(r){ return r.ok ? r.text() : ''; })
+      .then(function(text){
+        var emails = text.split(/\r?\n/).map(function(l){ return l.replace(/"/g,'').trim().toLowerCase(); }).filter(Boolean);
+        approvedEmailsCache = emails;
+        return emails;
+      })
+      .catch(function(){ return []; }); // network error -- fail closed
+  }
+
+  // Quietly re-check a previously-verified email against the live list once
+  // a day, so a removal in the Sheet actually takes effect for returning
+  // visitors instead of their browser trusting a stale localStorage flag
+  // forever.
+  function maybeRecheckVerification(){
+    var email = getVerifiedEmail();
+    if(!email) return;
+    var lastCheck = 0;
+    try { lastCheck = parseInt(localStorage.getItem(ENROLLEE_GATE_TS_KEY) || '0', 10); } catch(e){}
+    if(Date.now() - lastCheck < RECHECK_INTERVAL_MS) return;
+    fetchApprovedEmails().then(function(list){
+      if(list.length && list.indexOf(email) === -1){
+        clearVerifiedEmail();
+        navigate();
+      } else if(list.length) {
+        setVerifiedEmail(email); // refresh timestamp
+      }
+    });
+  }
+
+  function renderEnrolleeGate(onVerified){
+    var input = h('input', {type:'email', placeholder:'you@example.com', class:'cert-name-input', style:'max-width:320px;'});
+    var err = h('div', {style:'color:var(--red);font-size:13px;margin-top:12px;display:none;max-width:360px;'});
+    var btn = h('button', {class:'btn btn-primary', style:'margin-top:16px;'}, ['Continue']);
+
+    btn.addEventListener('click', function(){
+      var val = input.value.trim().toLowerCase();
+      if(!/\S+@\S+\.\S+/.test(val)){
+        err.textContent = 'Enter a valid email address.';
+        err.style.display = 'block';
+        return;
+      }
+      btn.disabled = true;
+      btn.textContent = 'Checking…';
+      err.style.display = 'none';
+      fetchApprovedEmails().then(function(list){
+        if(list.indexOf(val) !== -1){
+          setVerifiedEmail(val);
+          onVerified();
+        } else {
+          err.textContent = "That email isn't approved yet. Registration is reviewed by Hyre Training Academy -- you'll get an email once you're cleared to start.";
+          err.style.display = 'block';
+          btn.disabled = false;
+          btn.textContent = 'Continue';
+        }
+      });
+    });
+    input.addEventListener('keydown', function(e){ if(e.key === 'Enter') btn.click(); });
+
+    root.appendChild(h('section', {}, [
+      h('div', {class:'wrap center', style:'padding:100px 0;max-width:460px;margin:0 auto;'}, [
+        h('h2', {}, ['Enter your registered email']),
+        h('p', {style:'color:var(--text-dim);margin:10px 0 4px;'}, ['Courses are only visible to approved enrollees. Enter the email you registered with.']),
+        input,
+        h('div', {}, [btn]),
+        err,
+        h('p', {style:'margin-top:24px;'}, [h('a', {href:'#/portals', style:'color:var(--text-faint);font-size:13px;'}, ['Haven\'t registered yet? Start here →'])])
+      ])
+    ]));
+  }
 
   function highlightNav(key){
     document.querySelectorAll('.navlinks a').forEach(function(a){
