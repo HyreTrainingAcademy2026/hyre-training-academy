@@ -548,7 +548,7 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
       }
       maybeRecheckVerification(); // non-blocking background re-check, doesn't hold up this render
     }
-    if(parts[0] === 'modules'){ location.hash = '#/portals'; return; }
+    if(parts[0] === 'modules'){ location.hash = '#/dashboard'; return; }
     if(parts[0] === 'standards'){ location.hash = '#/portals'; return; }
     if(parts[0] === 'about'){ renderAbout(); highlightNav('about'); return; }
     if(parts[0] === 'enrollment'){ renderEnrollment(); highlightNav('enrollment'); return; }
@@ -556,6 +556,7 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
     if(parts[0] === 'portal' && parts[1] === 'va'){ renderVAPortal(); highlightNav('cta'); return; }
     if(parts[0] === 'portal' && parts[1] === 'client'){ renderClientPortal(); highlightNav('cta'); return; }
     if(parts[0] === 'portal' && parts[1] === 'internal'){ renderInternalPortal(); highlightNav('cta'); return; }
+    if(parts[0] === 'dashboard'){ renderDashboard(); highlightNav('dashboard'); return; }
     if(parts[0] === 'module' && parts[1] && MODULES[parts[1]]){ renderModuleDetail(parts[1]); highlightNav(''); return; }
     if(parts[0] === 'learn' && parts[1] && MODULES[parts[1]]){ renderLMS(parts[1], parts[2]); highlightNav(''); return; }
     if(parts[0] === 'certificate' && parts[1] && MODULES[parts[1]]){ renderCertificate(parts[1]); highlightNav(''); return; }
@@ -582,7 +583,7 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
   var approvedEmailsCache = null;
 
   function isCourseRoute(parts){
-    return parts[0] === 'module' || parts[0] === 'learn' || parts[0] === 'certificate';
+    return parts[0] === 'module' || parts[0] === 'learn' || parts[0] === 'certificate' || parts[0] === 'dashboard';
   }
 
   function getVerifiedEmail(){
@@ -844,6 +845,45 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
         h('div', {class:'module-grid'}, MODULE_ORDER.map(renderModuleCard))
       ])
     ]);
+    root.appendChild(sec);
+    root.appendChild(renderFooter());
+  }
+
+  // ---------------- Dashboard (post-login home for approved enrollees) ----------------
+  // Reached via the "Log In" button on each portal, or by revisiting any
+  // course link once verified. This is the hub: every module an approved
+  // enrollee can open lives here. Inside each module the existing hierarchy
+  // rules still apply -- lessons, quizzes, and the final certificate stay
+  // locked in order until the item before them is marked complete (see
+  // renderSidebar / renderLMS / renderCertificate below).
+  function renderDashboard(){
+    var email = getVerifiedEmail();
+    var hero = h('div', {class:'module-hero'}, [
+      h('div', {class:'wrap'}, [
+        h('span', {class:'eyebrow'}, [h('span',{class:'dot'}), 'Your Training']),
+        h('h1', {style:'font-size:38px'}, ['Welcome back.']),
+        h('p', {class:'lede'}, [
+          (email ? ('Logged in as ' + email + '. ') : ''),
+          'Every module you\'re cleared for is below. Lessons, quizzes, and assessments unlock in order -- finish one to open the next -- and each certificate unlocks once its module\'s requirements are met.'
+        ]),
+        h('a', {href:'#', style:'display:inline-block;margin-top:14px;color:var(--text-faint);font-size:13px;', onclick:function(e){
+          e.preventDefault();
+          clearVerifiedEmail();
+          location.hash = '#/portals';
+        }}, ['Log out'])
+      ])
+    ]);
+    var sec = h('section', {style:'padding-top:8px'}, [
+      h('div', {class:'wrap'}, [
+        h('div', {class:'section-head'}, [
+          h('span', {class:'section-tag'}, ['All Modules']),
+          h('h2', {}, ['Five tracks. Zero filler.']),
+          h('p', {class:'section-desc'}, ['Pick up any module below. Complete each lesson and pass its quiz at 80% or above to move to the next step; portfolio-backed modules also require the minimum completed projects before certification.'])
+        ]),
+        h('div', {class:'module-grid'}, MODULE_ORDER.map(renderModuleCard))
+      ])
+    ]);
+    root.appendChild(hero);
     root.appendChild(sec);
     root.appendChild(renderFooter());
   }
@@ -1483,6 +1523,34 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
     return card;
   }
 
+  // A standalone "Log In" button/card offered alongside each portal's
+  // registration form for enrollees who already registered and have been
+  // approved. It intentionally does not duplicate the email/password fields
+  // inline -- it hands off to the same course-gate login flow used
+  // everywhere else on the site (#/dashboard is a gated route), so there is
+  // exactly one login implementation to keep correct and secure.
+  function buildLoginPromptCard(portalLabel){
+    var card = h('div', {class:'std-card', style:'max-width:400px;align-self:stretch;display:flex;flex-direction:column;'});
+    card.appendChild(h('div', {class:'std-num'}, ['ALREADY APPROVED?']));
+    card.appendChild(h('h4', {style:'margin:0 0 6px;font-size:17px;'}, ['Log in to the ' + portalLabel]));
+    card.appendChild(h('p', {style:'margin:0 0 18px;color:var(--text-dim);font-size:13.5px;flex:1;'}, [
+      'If Hyre Operations has already approved your registration, log in with the email and password you set to view your modules, pick up lessons where you left off, take quizzes and assessments, and download certificates as you earn them.'
+    ]));
+    card.appendChild(h('a', {class:'btn btn-primary btn-block', href:'#/dashboard'}, ['🔓 Log In →']));
+    card.appendChild(h('p', {style:'margin:12px 0 0;color:var(--text-faint);font-size:12px;'}, [
+      'Access unlocks module by module, in order. Lessons, quizzes, and certificates stay locked until the required prerequisite is complete.'
+    ]));
+    return card;
+  }
+
+  function buildRegisterOrLoginRow(registrationCard, portalLabel){
+    return h('div', {style:'display:flex;gap:28px;flex-wrap:wrap;align-items:flex-start;justify-content:center;'}, [
+      registrationCard,
+      h('div', {style:'align-self:center;color:var(--text-faint);font-size:12.5px;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;'}, ['or']),
+      buildLoginPromptCard(portalLabel)
+    ]);
+  }
+
   function renderPortalChooser(){
     var hero = h('div', {class:'module-hero'}, [
       h('div', {class:'wrap'}, [
@@ -1535,7 +1603,7 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
           h('span', {class:'section-tag'}, ['VA Registration']),
           h('h2', {}, ['Confirm who you are'])
         ]),
-        buildRegistrationForm({
+        buildRegisterOrLoginRow(buildRegistrationForm({
           title: 'Register for the VA Portal',
           intro: 'Submitting notifies Hyre Operations of your registration request.',
           submitLabel: 'Submit Registration →',
@@ -1567,7 +1635,7 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
               '\n\n— To approve —\n1. Check this name and email against the system Hyre already uses to track VA work hours.\n2. If it matches, reply-all with just the word "Approved". That reply is the approval record.\n' +
               '(This VA cannot access course content until approved here -- they log in with the email and password they set at registration.)';
           }
-        })
+        }), 'VA Portal')
       ])
     ]);
     root.appendChild(hero);
@@ -1590,7 +1658,7 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
           h('span', {class:'section-tag'}, ['Client Registration']),
           h('h2', {}, ['Confirm your account'])
         ]),
-        buildRegistrationForm({
+        buildRegisterOrLoginRow(buildRegistrationForm({
           title: 'Register for the Client Portal',
           intro: 'Submitting notifies Hyre Operations of your registration request.',
           submitLabel: 'Submit Registration →',
@@ -1625,7 +1693,7 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
               '\n\n— To approve —\n1. Check this company and contact against the records Hyre keeps for active client accounts.\n2. If it matches, reply-all with just the word "Approved". That reply is the approval record.\n' +
               '(This client cannot view anything until approved here -- they log in with the email and password they set at registration.)';
           }
-        })
+        }), 'Client Portal')
       ])
     ]);
     root.appendChild(hero);
@@ -1648,7 +1716,7 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
           h('span', {class:'section-tag'}, ['Internal Registration']),
           h('h2', {}, ['Confirm who you are'])
         ]),
-        buildRegistrationForm({
+        buildRegisterOrLoginRow(buildRegistrationForm({
           title: 'Register for the Internal Portal',
           intro: 'Submitting notifies Hyre Operations of your registration request.',
           submitLabel: 'Submit Registration →',
@@ -1680,7 +1748,7 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
               '\n\n— To approve —\n1. Check this name and email against Hyre\'s internal staff records.\n2. If it matches, reply-all with just the word "Approved". That reply is the approval record.\n' +
               '(This person cannot access the internal portal until approved here -- they log in with the email and password they set at registration.)';
           }
-        })
+        }), 'Internal Portal')
       ])
     ]);
     root.appendChild(hero);
