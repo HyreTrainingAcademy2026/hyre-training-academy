@@ -1585,6 +1585,106 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
     ]);
   }
 
+  // ---------------- Portal hub content ----------------
+  // Synced from the Hyre Knowledge Base (ClickUp) "VA Portal" / "Internal
+  // Portal" pages -- the welcome copy, quick links, and (for VAs) the
+  // prerequisite course sequence that live there. Keep this in sync by hand
+  // when those ClickUp pages change; there's no live connection back to them.
+  function buildQuickLinksCard(items){
+    return h('div', {class:'std-card'}, items.map(function(it, i){
+      return h('div', {style:'display:flex;gap:12px;align-items:flex-start;' + (i > 0 ? 'margin-top:16px;padding-top:16px;border-top:1px solid var(--border);' : '')}, [
+        h('span', {style:'flex:none;width:6px;height:6px;border-radius:50%;background:var(--accent);margin-top:7px;'}),
+        h('div', {}, [
+          h('div', {style:'font-weight:600;font-size:14.5px;'}, [it.label]),
+          h('div', {style:'color:var(--text-dim);font-size:13.5px;margin-top:2px;'}, [it.desc])
+        ])
+      ]);
+    }));
+  }
+
+  function buildPrereqTable(rows, note){
+    return h('div', {}, [
+      h('table', {}, [
+        h('thead', {}, [h('tr', {}, [h('th',{},['Step']), h('th',{},['Course']), h('th',{},['Status Required'])])]),
+        h('tbody', {}, rows.map(function(r){
+          return h('tr', {}, [h('td',{},[String(r.step)]), h('td',{},[r.course]), h('td',{},[r.status])]);
+        }))
+      ]),
+      note ? h('p', {style:'margin:8px 0 0;color:var(--text-dim);font-size:13.5px;'}, [note]) : null
+    ]);
+  }
+
+  function buildAnnouncementsNote(text){
+    return h('p', {style:'margin:14px 0 0;color:var(--text-faint);font-size:12.5px;'}, [
+      h('strong', {}, ['Announcements: ']), text
+    ]);
+  }
+
+  function renderVAPortalHub(){
+    return h('section', {style:'padding-top:8px'}, [
+      h('div', {class:'wrap'}, [
+        h('div', {class:'section-head'}, [
+          h('span', {class:'section-tag'}, ['Your Hub']),
+          h('h2', {}, ['Welcome to the VA Portal']),
+          h('p', {class:'section-desc'}, ['Your central hub for everything related to Virtual Assistant onboarding, resources, and day-to-day operations at Hyre.'])
+        ]),
+        h('div', {style:'display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:28px;align-items:start;'}, [
+          buildQuickLinksCard([
+            {label:'Onboarding Checklist', desc:'Getting started as a Hyre VA'},
+            {label:'Tools & Systems Access', desc:'Platforms, logins, and setup guides'},
+            {label:'SOPs & Workflows', desc:'Standard operating procedures by role'},
+            {label:'Client Engagement Guidelines', desc:'Communication standards and expectations'},
+            {label:'Performance & KPIs', desc:'How success is measured'},
+            {label:'Support & Escalation', desc:'Where to go when you need help'}
+          ]),
+          h('div', {class:'std-card'}, [
+            h('div', {class:'std-num'}, ['PREREQUISITE COURSE SEQUENCE']),
+            h('p', {style:'margin:6px 0 0;color:var(--text-dim);font-size:13.5px;'}, ['All VAs must complete the following courses in order before accessing any other training modules:']),
+            buildPrereqTable([
+              {step:1, course:'New VA Onboarding Checklist', status:'Completed & verified by Account Manager'},
+              {step:2, course:'Global Compliance, Data Privacy & Ethics', status:'Passed (85% certification quiz)'}
+            ], 'Once both prerequisites are cleared, VAs may access role-specific modules (Articulation, Social Media Management, Admin Assistant, Executive Assistant, Paid Ads Specialist, AI & Automation).'),
+            buildAnnouncementsNote('No current announcements.')
+          ])
+        ])
+      ])
+    ]);
+  }
+
+  function renderInternalPortalHub(){
+    return h('section', {style:'padding-top:8px'}, [
+      h('div', {class:'wrap'}, [
+        h('div', {class:'section-head'}, [
+          h('span', {class:'section-tag'}, ['Your Hub']),
+          h('h2', {}, ['Welcome to the Internal Portal']),
+          h('p', {class:'section-desc'}, ['Your central hub for internal team training, development resources, and operational knowledge at Hyre.'])
+        ]),
+        h('div', {style:'display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:28px;align-items:start;'}, [
+          h('div', {}, [
+            h('div', {class:'std-num'}, ['TRAINING MODULES']),
+            h('div', {style:'height:8px;'}),
+            buildQuickLinksCard([
+              {label:'Talent Acquisition Manager Training Module', desc:'End-to-end recruitment and talent pipeline mastery'},
+              {label:'Customer Success Manager Training Module', desc:'Client relationship management and retention strategies'}
+            ])
+          ]),
+          h('div', {}, [
+            h('div', {class:'std-num'}, ['QUICK LINKS']),
+            h('div', {style:'height:8px;'}),
+            buildQuickLinksCard([
+              {label:'Team Onboarding', desc:'Internal onboarding flows and checklists'},
+              {label:'SOPs & Playbooks', desc:'Standard operating procedures for internal roles'},
+              {label:'Performance Standards', desc:'KPIs, metrics, and evaluation criteria'},
+              {label:'Tools & Systems', desc:'Platform access, integrations, and setup guides'},
+              {label:'Escalation Paths', desc:'Internal support and issue resolution'}
+            ]),
+            buildAnnouncementsNote('No current announcements.')
+          ])
+        ])
+      ])
+    ]);
+  }
+
   function renderPortalChooser(){
     var hero = h('div', {class:'module-hero'}, [
       h('div', {class:'wrap'}, [
@@ -1673,6 +1773,7 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
       ])
     ]);
     root.appendChild(hero);
+    root.appendChild(renderVAPortalHub());
     root.appendChild(formSec);
     root.appendChild(renderFooter());
   }
@@ -1786,6 +1887,7 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
       ])
     ]);
     root.appendChild(hero);
+    root.appendChild(renderInternalPortalHub());
     root.appendChild(formSec);
     root.appendChild(renderFooter());
   }
