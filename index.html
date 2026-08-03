@@ -1629,6 +1629,15 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
           h('p', {class:'section-desc'}, ['Your central hub for everything related to Virtual Assistant onboarding, resources, and day-to-day operations at Hyre.'])
         ]),
         h('div', {style:'display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:28px;align-items:start;'}, [
+          h('div', {class:'std-card'}, [
+            h('div', {class:'std-num'}, ['PREREQUISITE COURSE SEQUENCE']),
+            h('p', {style:'margin:6px 0 0;color:var(--text-dim);font-size:13.5px;'}, ['All VAs must complete the following in order before accessing any other training modules:']),
+            buildPrereqTable([
+              {step:1, course:'VA Welcome Packet', status:'Reviewed & acknowledged'},
+              {step:2, course:'New VA Onboarding Checklist', status:'Completed & verified by Account Manager'}
+            ], 'Once both prerequisites are cleared, VAs may access role-specific modules (Articulation, Social Media Management, Admin Assistant, Executive Assistant, Paid Ads Specialist, AI & Automation).'),
+            buildAnnouncementsNote('No current announcements.')
+          ]),
           h('div', {}, [
             buildQuickLinksCard([
               {label:'VA Welcome Packet', desc:'Company overview, policies, timekeeping, payroll & compliance', href:'#/portal/va/welcome-packet'},
@@ -1639,15 +1648,6 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
               {label:'Performance & KPIs', desc:'How success is measured'},
               {label:'Support & Escalation', desc:'Where to go when you need help'}
             ])
-          ]),
-          h('div', {class:'std-card'}, [
-            h('div', {class:'std-num'}, ['PREREQUISITE COURSE SEQUENCE']),
-            h('p', {style:'margin:6px 0 0;color:var(--text-dim);font-size:13.5px;'}, ['All VAs must complete the following in order before accessing any other training modules:']),
-            buildPrereqTable([
-              {step:1, course:'VA Welcome Packet', status:'Reviewed & acknowledged'},
-              {step:2, course:'New VA Onboarding Checklist', status:'Completed & verified by Account Manager'}
-            ], 'Once both prerequisites are cleared, VAs may access role-specific modules (Articulation, Social Media Management, Admin Assistant, Executive Assistant, Paid Ads Specialist, AI & Automation).'),
-            buildAnnouncementsNote('No current announcements.')
           ])
         ])
       ])
@@ -1664,15 +1664,6 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
         ]),
         h('div', {style:'display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:28px;align-items:start;'}, [
           h('div', {}, [
-            h('div', {class:'std-num'}, ['TRAINING MODULES']),
-            h('div', {style:'height:8px;'}),
-            buildQuickLinksCard([
-              {label:'Talent Acquisition Manager Training Module', desc:'End-to-end recruitment and talent pipeline mastery'},
-              {label:'Customer Success Manager Training Module', desc:'Client relationship management and retention strategies'},
-              {label:'AI & Automation for Virtual Assistants', desc:'AI tools, prompt engineering, and no-code automation for VAs', href:'#/portal/internal/ai-automation'}
-            ])
-          ]),
-          h('div', {}, [
             h('div', {class:'std-num'}, ['QUICK LINKS']),
             h('div', {style:'height:8px;'}),
             buildQuickLinksCard([
@@ -1683,6 +1674,15 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
               {label:'Escalation Paths', desc:'Internal support and issue resolution'}
             ]),
             buildAnnouncementsNote('No current announcements.')
+          ]),
+          h('div', {}, [
+            h('div', {class:'std-num'}, ['TRAINING MODULES']),
+            h('div', {style:'height:8px;'}),
+            buildQuickLinksCard([
+              {label:'Talent Acquisition Manager Training Module', desc:'End-to-end recruitment and talent pipeline mastery'},
+              {label:'Customer Success Manager Training Module', desc:'Client relationship management and retention strategies'},
+              {label:'AI & Automation for Virtual Assistants', desc:'AI tools, prompt engineering, and no-code automation for VAs', href:'#/portal/internal/ai-automation'}
+            ])
           ])
         ])
       ])
