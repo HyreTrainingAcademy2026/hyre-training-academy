@@ -540,7 +540,7 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
     closeMobileNav();
     document.body.classList.remove('printing-certificate');
     if(parts.length === 0){ renderHome(); highlightNav('home'); return; }
-    if(isCourseRoute(parts)){
+    if(isCourseRoute(parts) || isGatedPortalContent(parts)){
       if(!getVerifiedEmail()){
         renderEnrolleeGate(function(){ navigate(); });
         highlightNav('');
@@ -550,8 +550,10 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
       // The Client Portal has no courses built yet -- keep client logins on
       // the dashboard (which shows the "no courses yet" holding message)
       // instead of letting a direct link into module/learn/certificate
-      // content through.
-      if(parts[0] !== 'dashboard' && getVerifiedPortalType().trim().toLowerCase() === 'client'){
+      // content through. Gated portal sub-pages (Welcome Packet, AI &
+      // Automation) aren't part of that course sequence, so Client logins
+      // aren't redirected away from them.
+      if(isCourseRoute(parts) && parts[0] !== 'dashboard' && getVerifiedPortalType().trim().toLowerCase() === 'client'){
         location.hash = '#/dashboard';
         return;
       }
@@ -596,6 +598,13 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
 
   function isCourseRoute(parts){
     return parts[0] === 'module' || parts[0] === 'learn' || parts[0] === 'certificate' || parts[0] === 'dashboard';
+  }
+
+  // VA Welcome Packet and AI & Automation live under /portal/<type>/... but,
+  // like course content, must only be visible to approved, logged-in
+  // enrollees -- never on the public pre-login portal pages.
+  function isGatedPortalContent(parts){
+    return parts[0] === 'portal' && parts.length >= 3 && (parts[2] === 'welcome-packet' || parts[2] === 'ai-automation');
   }
 
   function getVerifiedEmail(){
@@ -873,11 +882,13 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
   // renderSidebar / renderLMS / renderCertificate below).
   function renderDashboard(){
     var email = getVerifiedEmail();
-    // The Client Portal has no courses built yet. Only VA and Internal
-    // enrollees see the module grid -- a Client login (or any portal type
-    // we don't recognize as having live courses) gets a holding message
-    // instead. When client courses exist, add their portal type check here.
-    var isClientPortal = getVerifiedPortalType().trim().toLowerCase() === 'client';
+    var portalType = getVerifiedPortalType().trim().toLowerCase();
+    // The Client Portal has no courses built yet -- a Client login gets a
+    // holding message instead of the module grid. When client courses
+    // exist, add their portal type check here.
+    var isClientPortal = portalType === 'client';
+    var isVAPortal = portalType === 'va';
+    var isInternalPortal = portalType === 'internal';
 
     var hero = h('div', {class:'module-hero'}, [
       h('div', {class:'wrap'}, [
@@ -887,7 +898,7 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
           (email ? ('Logged in as ' + email + '. ') : ''),
           isClientPortal
             ? 'Client training modules are not live yet.'
-            : 'Every module you\'re cleared for is below. Lessons, quizzes, and assessments unlock in order -- finish one to open the next -- and each certificate unlocks once its module\'s requirements are met.'
+            : 'Everything you\'re cleared for is below. Lessons, quizzes, and assessments unlock in order -- finish one to open the next -- and each certificate unlocks once its module\'s requirements are met.'
         ]),
         h('a', {href:'#', style:'display:inline-block;margin-top:14px;color:var(--text-faint);font-size:13px;', onclick:function(e){
           e.preventDefault();
@@ -896,6 +907,14 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
         }}, ['Log out'])
       ])
     ]);
+
+    // Portal-specific hub -- Quick Links, Training Modules, prerequisites,
+    // and announcements. Only ever rendered here, inside the gated
+    // dashboard, so it's never visible before someone is approved and
+    // logged in.
+    var hubSec = null;
+    if(isVAPortal) hubSec = renderVAPortalHub();
+    else if(isInternalPortal) hubSec = renderInternalPortalHub();
 
     var sec;
     if(isClientPortal){
@@ -921,6 +940,7 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
     }
 
     root.appendChild(hero);
+    if(hubSec) root.appendChild(hubSec);
     root.appendChild(sec);
     root.appendChild(renderFooter());
   }
@@ -1713,7 +1733,7 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
   function renderVAWelcomePacket(){
     var hero = h('div', {class:'module-hero'}, [
       h('div', {class:'wrap'}, [
-        h('div', {class:'breadcrumb'}, [h('a',{href:'#/portals'},['Portals']), ' / ', h('a',{href:'#/portal/va'},['VA Portal']), ' / VA Welcome Packet']),
+        h('div', {class:'breadcrumb'}, [h('a',{href:'#/dashboard'},['Dashboard']), ' / VA Welcome Packet']),
         h('span', {class:'eyebrow'}, [h('span',{class:'dot'}), 'VA Welcome Packet']),
         h('h1', {style:'font-size:38px'}, ['Nice to meet you.']),
         h('p', {class:'lede'}, ['Welcome to your partnership kick-off and onboarding. This packet explains the rights, responsibilities, and obligations of Hyre Independent Contractors, and is legally binding when read alongside your signed Independent Contractor Agreement.'])
@@ -1845,7 +1865,7 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
       '<h3>90-Day Contractor to Client Guide</h3>' +
       '<p><strong>Week 1–2 (Orientation &amp; Setup):</strong> complete all tool onboarding (Hubstaff, Discord, Rippling), review client SOPs and workflows, shadow existing team members. <strong>Week 3–4 (Guided Execution):</strong> begin task execution with AM oversight and daily check-ins. <strong>Month 2–3 (Independent Operation):</strong> full task ownership with weekly check-ins and performance reviews at 60 and 90 days.</p>' +
       '<p><strong>Coaching &amp; Development check-in cadence:</strong> Week 1–4 daily (via Discord); Month 2 twice weekly; Month 3+ weekly; post-90 days bi-weekly or as needed.</p>' +
-      '<p style="margin-top:36px;"><a href="#/portal/va" class="btn btn-ghost">← Back to VA Portal</a></p>'
+      '<p style="margin-top:36px;"><a href="#/dashboard" class="btn btn-ghost">← Back to Dashboard</a></p>'
     );
 
     root.appendChild(hero);
@@ -1861,11 +1881,11 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
 
   // ---------------- AI & Automation for Virtual Assistants ----------------
   function renderAIAutomationPage(portalType){
-    var backHref = portalType === 'internal' ? '#/portal/internal' : '#/portal/va';
-    var backLabel = portalType === 'internal' ? 'Internal Portal' : 'VA Portal';
+    var backHref = '#/dashboard';
+    var backLabel = 'Dashboard';
     var hero = h('div', {class:'module-hero'}, [
       h('div', {class:'wrap'}, [
-        h('div', {class:'breadcrumb'}, [h('a',{href:'#/portals'},['Portals']), ' / ', h('a',{href:backHref},[backLabel]), ' / AI & Automation']),
+        h('div', {class:'breadcrumb'}, [h('a',{href:backHref},[backLabel]), ' / AI & Automation']),
         h('span', {class:'eyebrow'}, [h('span',{class:'dot'}), 'Training Module']),
         h('h1', {style:'font-size:38px'}, ['AI & Automation for Virtual Assistants.']),
         h('p', {class:'lede'}, ['Turn from a passive tool user into an AI-augmented operator who can multiply output while maintaining quality, ethics, and client trust. Real prompting systems and no-code automations, not just "here\'s ChatGPT."'])
@@ -2083,7 +2103,6 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
       ])
     ]);
     root.appendChild(hero);
-    root.appendChild(renderVAPortalHub());
     root.appendChild(formSec);
     root.appendChild(renderFooter());
   }
@@ -2197,7 +2216,6 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
       ])
     ]);
     root.appendChild(hero);
-    root.appendChild(renderInternalPortalHub());
     root.appendChild(formSec);
     root.appendChild(renderFooter());
   }
