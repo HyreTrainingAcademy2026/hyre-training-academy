@@ -120,6 +120,8 @@ footer .brand{gap:12px;}
 .btn-ghost{background:transparent;}
 .btn-block{width:100%;justify-content:center;}
 .btn-sm{padding:8px 14px;font-size:13.5px;}
+.btn-locked{opacity:0.5;cursor:not-allowed;background:var(--bg-raised);color:var(--text-faint);border-color:var(--border);}
+.btn-locked:hover{transform:none;background:var(--bg-raised);}
 
 /* ---------- Hero ---------- */
 .hero{padding:88px 0 64px;border-bottom:1px solid var(--border);position:relative;overflow:hidden;}
@@ -319,7 +321,8 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
 .lms-content-wrap{max-width:800px;margin:0 auto;padding:44px 44px 100px;}
 .lesson-topbar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:30px;flex-wrap:wrap;}
 .lesson-eyebrow{color:var(--text-faint);font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;}
-.lesson-pager{display:flex;gap:10px;margin-top:52px;padding-top:26px;border-top:1px solid var(--border);justify-content:space-between;}
+.lesson-pager{display:flex;gap:10px;margin-top:52px;padding-top:26px;border-top:1px solid var(--border);justify-content:space-between;flex-wrap:wrap;}
+.lesson-pager-right{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:flex-end;margin-left:auto;}
 
 /* Quiz styling */
 .quiz-q{background:var(--bg-card);border:1px solid var(--border);border-radius:9px;padding:16px 18px;margin:14px 0;}
@@ -2832,15 +2835,33 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
     var m = MODULES[slug];
     var isDone = !!PROGRESS[slug][current.id];
 
+    // The lesson-pager's forward button (whether it points to the next
+    // lesson or, on the last item, to "Finish Module") only unlocks once
+    // the current item is marked complete -- same rule the sidebar already
+    // enforces. Previously this button always rendered as a live link
+    // regardless of lock state: clicking it before completion changed the
+    // URL but silently bounced back to this same page (renderLMS redirects
+    // locked targets to the first unlocked item), which looked like a
+    // broken button. Rendering it as a genuinely inert, visibly locked
+    // element until it's actually clickable fixes that -- every button on
+    // this page now either works or honestly looks disabled, never both.
+    var forwardLocked = !isDone;
+    var forwardHref = next ? '#/learn/'+slug+'/'+next.id : '#/module/'+slug;
+    var forwardLabel = next ? (next.title + ' →') : 'Finish Module →';
+    var forwardBtn = forwardLocked
+      ? h('span', {class:'btn btn-primary btn-locked', title:'Mark this lesson complete to unlock', 'aria-disabled':'true'}, ['🔒 ' + forwardLabel])
+      : h('a', {class:'btn btn-primary', href:forwardHref}, [forwardLabel]);
+
+    var completeBtn = h('button', {
+      class:'btn btn-sm ' + (isDone ? 'btn-ghost' : 'btn-primary'),
+      id:'complete-btn',
+      onclick:function(){ toggleComplete(slug, items, current); }
+    }, [isDone ? '✓ Completed' : 'Mark Complete']);
+
     var main = h('div', {class:'lms-main'}, [
       h('div', {class:'lms-content-wrap'}, [
         h('div', {class:'lesson-topbar'}, [
-          h('div', {class:'lesson-eyebrow'}, [m.short + ' · ' + current.group]),
-          h('button', {
-            class:'btn btn-sm ' + (isDone ? 'btn-ghost' : 'btn-primary'),
-            id:'complete-btn',
-            onclick:function(){ toggleComplete(slug, items, current); }
-          }, [isDone ? '✓ Completed' : 'Mark Complete'])
+          h('div', {class:'lesson-eyebrow'}, [m.short + ' · ' + current.group])
         ]),
         h('div', {class:'content-prose', html: current.doc.html}),
         current.kind === 'standards' && PORTFOLIO_REQUIREMENTS[slug] ? h('div', {class:'content-prose'}, [
@@ -2850,7 +2871,7 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
         ]) : null,
         h('div', {class:'lesson-pager'}, [
           prev ? h('a', {class:'btn btn-ghost', href:'#/learn/'+slug+'/'+prev.id}, ['← ' + prev.title]) : h('span', {}),
-          next ? h('a', {class:'btn btn-primary', href:'#/learn/'+slug+'/'+next.id}, [next.title + ' →']) : h('a', {class:'btn btn-primary', href:'#/module/'+slug}, ['Finish Module →'])
+          h('div', {class:'lesson-pager-right'}, [completeBtn, forwardBtn])
         ])
       ])
     ]);
