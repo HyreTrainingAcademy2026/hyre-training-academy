@@ -566,6 +566,9 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
     if(parts[0] === 'portal' && parts[1] === 'va' && parts[2] === 'welcome-packet'){ renderVAWelcomePacket(); highlightNav('cta'); return; }
     if(parts[0] === 'portal' && parts[1] === 'va' && parts[2] === 'ai-automation'){ renderAIAutomationPage('va'); highlightNav('cta'); return; }
     if(parts[0] === 'portal' && parts[1] === 'internal' && parts[2] === 'ai-automation'){ renderAIAutomationPage('internal'); highlightNav('cta'); return; }
+    if(parts[0] === 'portal' && parts[1] === 'va' && parts[2] === 'register'){ renderVARegister(); highlightNav('cta'); return; }
+    if(parts[0] === 'portal' && parts[1] === 'client' && parts[2] === 'register'){ renderClientRegister(); highlightNav('cta'); return; }
+    if(parts[0] === 'portal' && parts[1] === 'internal' && parts[2] === 'register'){ renderInternalRegister(); highlightNav('cta'); return; }
     if(parts[0] === 'portal' && parts[1] === 'va'){ renderVAPortal(); highlightNav('cta'); return; }
     if(parts[0] === 'portal' && parts[1] === 'client'){ renderClientPortal(); highlightNav('cta'); return; }
     if(parts[0] === 'portal' && parts[1] === 'internal'){ renderInternalPortal(); highlightNav('cta'); return; }
@@ -1580,34 +1583,6 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
     return card;
   }
 
-  // A standalone "Log In" button/card offered alongside each portal's
-  // registration form for enrollees who already registered and have been
-  // approved. It intentionally does not duplicate the email/password fields
-  // inline -- it hands off to the same course-gate login flow used
-  // everywhere else on the site (#/dashboard is a gated route), so there is
-  // exactly one login implementation to keep correct and secure.
-  function buildLoginPromptCard(portalLabel){
-    var card = h('div', {class:'std-card', style:'max-width:400px;align-self:stretch;display:flex;flex-direction:column;'});
-    card.appendChild(h('div', {class:'std-num'}, ['ALREADY APPROVED?']));
-    card.appendChild(h('h4', {style:'margin:0 0 6px;font-size:17px;'}, ['Log in to the ' + portalLabel]));
-    card.appendChild(h('p', {style:'margin:0 0 18px;color:var(--text-dim);font-size:13.5px;flex:1;'}, [
-      'If Hyre Operations has already approved your registration, log in with the email and password you set to view your modules, pick up lessons where you left off, take quizzes and assessments, and download certificates as you earn them.'
-    ]));
-    card.appendChild(h('a', {class:'btn btn-primary btn-block', href:'#/dashboard'}, ['🔓 Log In →']));
-    card.appendChild(h('p', {style:'margin:12px 0 0;color:var(--text-faint);font-size:12px;'}, [
-      'Access unlocks module by module, in order. Lessons, quizzes, and certificates stay locked until the required prerequisite is complete.'
-    ]));
-    return card;
-  }
-
-  function buildRegisterOrLoginRow(registrationCard, portalLabel){
-    return h('div', {style:'display:flex;gap:28px;flex-wrap:wrap;align-items:flex-start;justify-content:center;'}, [
-      registrationCard,
-      h('div', {style:'align-self:center;color:var(--text-faint);font-size:12.5px;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;'}, ['or']),
-      buildLoginPromptCard(portalLabel)
-    ]);
-  }
-
   // ---------------- Portal hub content ----------------
   // Synced from the Hyre Knowledge Base (ClickUp) "VA Portal" / "Internal
   // Portal" pages -- the welcome copy, quick links, and (for VAs) the
@@ -2052,10 +2027,94 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
     root.appendChild(renderFooter());
   }
 
+  // Clicking into any portal from the chooser lands on this login screen
+  // first -- the registration form is a secondary page, reached only via
+  // the "Haven't registered yet?" link below. This mirrors the exact
+  // course-gate login UI (renderEnrolleeGate) so there's one login
+  // implementation, just with a portal-specific breadcrumb and a
+  // registration link scoped to that portal instead of the generic
+  // portal chooser.
+  function renderPortalLoginGate(portalLabel, registerHref){
+    var emailInput = h('input', {type:'email', placeholder:'you@example.com', class:'cert-name-input', style:'max-width:320px;', autocomplete:'username'});
+    var passInput = h('input', {type:'password', placeholder:'Your password', class:'cert-name-input', style:'max-width:320px;margin-top:10px;', autocomplete:'current-password'});
+    var err = h('div', {style:'color:var(--red);font-size:13px;margin-top:12px;display:none;max-width:360px;'});
+    var btn = h('button', {class:'btn btn-primary', style:'margin-top:16px;'}, ['Log In']);
+
+    var submit = function(){
+      var email = emailInput.value.trim().toLowerCase();
+      var password = passInput.value;
+      if(!/\S+@\S+\.\S+/.test(email)){
+        err.textContent = 'Enter a valid email address.';
+        err.style.display = 'block';
+        return;
+      }
+      if(!password){
+        err.textContent = 'Enter your password.';
+        err.style.display = 'block';
+        return;
+      }
+      btn.disabled = true;
+      btn.textContent = 'Logging in…';
+      err.style.display = 'none';
+      loginRequest(email, password).then(function(result){
+        if(result && result.ok){
+          setVerifiedEmail(email, result.portalType || '');
+          location.hash = '#/dashboard';
+          return;
+        }
+        var reason = result && result.reason;
+        if(reason === 'bad-password'){
+          err.textContent = 'Incorrect password for that email. Try again, or check the password you set when you registered.';
+        } else if(reason === 'missing'){
+          err.textContent = 'Enter both your email and password.';
+        } else if(reason === 'not-approved'){
+          err.textContent = "That email isn't approved yet, or doesn't match our records. Registration is reviewed by Hyre Training Academy -- you'll get an email once you're cleared to start.";
+        } else {
+          err.textContent = "Couldn't verify your login right now. Please try again in a moment.";
+        }
+        err.style.display = 'block';
+        btn.disabled = false;
+        btn.textContent = 'Log In';
+      });
+    };
+
+    btn.addEventListener('click', submit);
+    emailInput.addEventListener('keydown', function(e){ if(e.key === 'Enter') submit(); });
+    passInput.addEventListener('keydown', function(e){ if(e.key === 'Enter') submit(); });
+
+    root.appendChild(h('section', {}, [
+      h('div', {class:'wrap center', style:'padding:100px 0;max-width:460px;margin:0 auto;'}, [
+        h('div', {class:'breadcrumb', style:'justify-content:center;'}, [h('a',{href:'#/portals'},['Portals']), ' / ' + portalLabel]),
+        h('h2', {style:'margin-top:14px;'}, ['Log in to continue']),
+        h('p', {style:'color:var(--text-dim);margin:10px 0 4px;'}, ['Courses are only visible to approved enrollees. Log in with the email and password you registered with.']),
+        emailInput,
+        passInput,
+        h('div', {}, [btn]),
+        err,
+        h('p', {style:'margin-top:24px;'}, [h('a', {href:registerHref, style:'color:var(--text-faint);font-size:13px;'}, ['Haven\'t registered yet? Register here →'])])
+      ])
+    ]));
+    root.appendChild(renderFooter());
+  }
+
   function renderVAPortal(){
+    renderPortalLoginGate('VA Portal', '#/portal/va/register');
+  }
+
+  function renderClientPortal(){
+    renderPortalLoginGate('Client Portal', '#/portal/client/register');
+  }
+
+  function renderInternalPortal(){
+    renderPortalLoginGate('Internal Portal', '#/portal/internal/register');
+  }
+
+  // Registration is a secondary page for each portal -- only reached via
+  // the "Haven't registered yet?" link on that portal's login gate above.
+  function renderVARegister(){
     var hero = h('div', {class:'module-hero'}, [
       h('div', {class:'wrap'}, [
-        h('div', {class:'breadcrumb'}, [h('a',{href:'#/portals'},['Portals']), ' / VA Portal']),
+        h('div', {class:'breadcrumb'}, [h('a',{href:'#/portals'},['Portals']), ' / ', h('a',{href:'#/portal/va'},['VA Portal']), ' / Register']),
         h('span', {class:'eyebrow'}, [h('span',{class:'dot'}), 'VA Portal']),
         h('h1', {style:'font-size:38px'}, ['Register for VA access.']),
         h('p', {class:'lede'}, ['Active Hyre VAs only. Register below and Hyre Operations confirms your access.'])
@@ -2067,39 +2126,42 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
           h('span', {class:'section-tag'}, ['VA Registration']),
           h('h2', {}, ['Confirm who you are'])
         ]),
-        buildRegisterOrLoginRow(buildRegistrationForm({
-          title: 'Register for the VA Portal',
-          intro: 'Submitting notifies Hyre Operations of your registration request.',
-          submitLabel: 'Submit Registration →',
-          portalType: 'VA',
-          fields: [
-            {
-              key: 'name', label: 'Full Name', placeholder: 'Jane Dela Cruz',
-              help: 'Enter it exactly as it appears in the system Hyre uses to track your work hours.',
-              validate: function(v){ return v ? null : 'Enter your full name to continue.'; }
-            },
-            {
-              key: 'email', label: 'Email Address', type: 'email', placeholder: 'jane@example.com',
-              help: 'Use the address on file in the system Hyre uses for HR and payroll.',
-              validate: function(v){ return /\S+@\S+\.\S+/.test(v) ? null : 'Enter a valid email address.'; }
-            },
-            {
-              key: 'password', label: 'Create a Password', type: 'password', placeholder: '••••••••', autocomplete: 'new-password',
-              help: 'At least 8 characters. You\'ll use this with your email to log in once approved.',
-              validate: function(v){ return v && v.length >= 8 ? null : 'Password must be at least 8 characters.'; }
-            },
-            {
-              key: 'confirmPassword', label: 'Confirm Password', type: 'password', placeholder: '••••••••', autocomplete: 'new-password',
-              validate: function(v){ return v ? null : 'Re-enter your password to confirm.'; }
+        h('div', {style:'display:flex;justify-content:center;'}, [
+          buildRegistrationForm({
+            title: 'Register for the VA Portal',
+            intro: 'Submitting notifies Hyre Operations of your registration request.',
+            submitLabel: 'Submit Registration →',
+            portalType: 'VA',
+            fields: [
+              {
+                key: 'name', label: 'Full Name', placeholder: 'Jane Dela Cruz',
+                help: 'Enter it exactly as it appears in the system Hyre uses to track your work hours.',
+                validate: function(v){ return v ? null : 'Enter your full name to continue.'; }
+              },
+              {
+                key: 'email', label: 'Email Address', type: 'email', placeholder: 'jane@example.com',
+                help: 'Use the address on file in the system Hyre uses for HR and payroll.',
+                validate: function(v){ return /\S+@\S+\.\S+/.test(v) ? null : 'Enter a valid email address.'; }
+              },
+              {
+                key: 'password', label: 'Create a Password', type: 'password', placeholder: '••••••••', autocomplete: 'new-password',
+                help: 'At least 8 characters. You\'ll use this with your email to log in once approved.',
+                validate: function(v){ return v && v.length >= 8 ? null : 'Password must be at least 8 characters.'; }
+              },
+              {
+                key: 'confirmPassword', label: 'Confirm Password', type: 'password', placeholder: '••••••••', autocomplete: 'new-password',
+                validate: function(v){ return v ? null : 'Re-enter your password to confirm.'; }
+              }
+            ],
+            subject: function(v){ return 'VA Portal Registration — ' + v.name; },
+            body: function(v){
+              return 'VA Portal registration request.\n\nFull Name: ' + v.name + '\nEmail: ' + v.email + '\n\nSubmitted via Hyre Training Academy VA Portal.' +
+                '\n\n— To approve —\n1. Check this name and email against the system Hyre already uses to track VA work hours.\n2. If it matches, reply-all with just the word "Approved". That reply is the approval record.\n' +
+                '(This VA cannot access course content until approved here -- they log in with the email and password they set at registration.)';
             }
-          ],
-          subject: function(v){ return 'VA Portal Registration — ' + v.name; },
-          body: function(v){
-            return 'VA Portal registration request.\n\nFull Name: ' + v.name + '\nEmail: ' + v.email + '\n\nSubmitted via Hyre Training Academy VA Portal.' +
-              '\n\n— To approve —\n1. Check this name and email against the system Hyre already uses to track VA work hours.\n2. If it matches, reply-all with just the word "Approved". That reply is the approval record.\n' +
-              '(This VA cannot access course content until approved here -- they log in with the email and password they set at registration.)';
-          }
-        }), 'VA Portal')
+          })
+        ]),
+        h('p', {style:'text-align:center;margin-top:20px;'}, [h('a', {href:'#/portal/va', style:'color:var(--text-faint);font-size:13px;'}, ['Already registered and approved? Log in →'])])
       ])
     ]);
     root.appendChild(hero);
@@ -2107,10 +2169,10 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
     root.appendChild(renderFooter());
   }
 
-  function renderClientPortal(){
+  function renderClientRegister(){
     var hero = h('div', {class:'module-hero'}, [
       h('div', {class:'wrap'}, [
-        h('div', {class:'breadcrumb'}, [h('a',{href:'#/portals'},['Portals']), ' / Client Portal']),
+        h('div', {class:'breadcrumb'}, [h('a',{href:'#/portals'},['Portals']), ' / ', h('a',{href:'#/portal/client'},['Client Portal']), ' / Register']),
         h('span', {class:'eyebrow'}, [h('span',{class:'dot'}), 'Client Portal']),
         h('h1', {style:'font-size:38px'}, ['Register for client access.']),
         h('p', {class:'lede'}, ['Active Hyre clients only. Register below and Hyre Operations confirms your access.'])
@@ -2122,42 +2184,45 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
           h('span', {class:'section-tag'}, ['Client Registration']),
           h('h2', {}, ['Confirm your account'])
         ]),
-        buildRegisterOrLoginRow(buildRegistrationForm({
-          title: 'Register for the Client Portal',
-          intro: 'Submitting notifies Hyre Operations of your registration request.',
-          submitLabel: 'Submit Registration →',
-          portalType: 'Client',
-          fields: [
-            {
-              key: 'company', label: 'Company Name', placeholder: 'Acme Inc.',
-              validate: function(v){ return v ? null : 'Enter your company name.'; }
-            },
-            {
-              key: 'companyEmail', label: 'Company Email Address', type: 'email', placeholder: 'you@company.com',
-              help: 'We\'ll check this against the records Hyre keeps for active client accounts.',
-              validate: function(v){ return /\S+@\S+\.\S+/.test(v) ? null : 'Enter a valid company email address.'; }
-            },
-            {
-              key: 'name', label: 'Full Name', placeholder: 'Jane Smith',
-              validate: function(v){ return v ? null : 'Enter your full name to continue.'; }
-            },
-            {
-              key: 'password', label: 'Create a Password', type: 'password', placeholder: '••••••••', autocomplete: 'new-password',
-              help: 'At least 8 characters. You\'ll use this with your email to log in once approved.',
-              validate: function(v){ return v && v.length >= 8 ? null : 'Password must be at least 8 characters.'; }
-            },
-            {
-              key: 'confirmPassword', label: 'Confirm Password', type: 'password', placeholder: '••••••••', autocomplete: 'new-password',
-              validate: function(v){ return v ? null : 'Re-enter your password to confirm.'; }
+        h('div', {style:'display:flex;justify-content:center;'}, [
+          buildRegistrationForm({
+            title: 'Register for the Client Portal',
+            intro: 'Submitting notifies Hyre Operations of your registration request.',
+            submitLabel: 'Submit Registration →',
+            portalType: 'Client',
+            fields: [
+              {
+                key: 'company', label: 'Company Name', placeholder: 'Acme Inc.',
+                validate: function(v){ return v ? null : 'Enter your company name.'; }
+              },
+              {
+                key: 'companyEmail', label: 'Company Email Address', type: 'email', placeholder: 'you@company.com',
+                help: 'We\'ll check this against the records Hyre keeps for active client accounts.',
+                validate: function(v){ return /\S+@\S+\.\S+/.test(v) ? null : 'Enter a valid company email address.'; }
+              },
+              {
+                key: 'name', label: 'Full Name', placeholder: 'Jane Smith',
+                validate: function(v){ return v ? null : 'Enter your full name to continue.'; }
+              },
+              {
+                key: 'password', label: 'Create a Password', type: 'password', placeholder: '••••••••', autocomplete: 'new-password',
+                help: 'At least 8 characters. You\'ll use this with your email to log in once approved.',
+                validate: function(v){ return v && v.length >= 8 ? null : 'Password must be at least 8 characters.'; }
+              },
+              {
+                key: 'confirmPassword', label: 'Confirm Password', type: 'password', placeholder: '••••••••', autocomplete: 'new-password',
+                validate: function(v){ return v ? null : 'Re-enter your password to confirm.'; }
+              }
+            ],
+            subject: function(v){ return 'Client Portal Registration — ' + v.company; },
+            body: function(v){
+              return 'Client Portal registration request.\n\nCompany Name: ' + v.company + '\nCompany Email: ' + v.companyEmail + '\nFull Name: ' + v.name + '\n\nSubmitted via Hyre Training Academy Client Portal.' +
+                '\n\n— To approve —\n1. Check this company and contact against the records Hyre keeps for active client accounts.\n2. If it matches, reply-all with just the word "Approved". That reply is the approval record.\n' +
+                '(This client cannot view anything until approved here -- they log in with the email and password they set at registration.)';
             }
-          ],
-          subject: function(v){ return 'Client Portal Registration — ' + v.company; },
-          body: function(v){
-            return 'Client Portal registration request.\n\nCompany Name: ' + v.company + '\nCompany Email: ' + v.companyEmail + '\nFull Name: ' + v.name + '\n\nSubmitted via Hyre Training Academy Client Portal.' +
-              '\n\n— To approve —\n1. Check this company and contact against the records Hyre keeps for active client accounts.\n2. If it matches, reply-all with just the word "Approved". That reply is the approval record.\n' +
-              '(This client cannot view anything until approved here -- they log in with the email and password they set at registration.)';
-          }
-        }), 'Client Portal')
+          })
+        ]),
+        h('p', {style:'text-align:center;margin-top:20px;'}, [h('a', {href:'#/portal/client', style:'color:var(--text-faint);font-size:13px;'}, ['Already registered and approved? Log in →'])])
       ])
     ]);
     root.appendChild(hero);
@@ -2165,10 +2230,10 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
     root.appendChild(renderFooter());
   }
 
-  function renderInternalPortal(){
+  function renderInternalRegister(){
     var hero = h('div', {class:'module-hero'}, [
       h('div', {class:'wrap'}, [
-        h('div', {class:'breadcrumb'}, [h('a',{href:'#/portals'},['Portals']), ' / Internal Portal']),
+        h('div', {class:'breadcrumb'}, [h('a',{href:'#/portals'},['Portals']), ' / ', h('a',{href:'#/portal/internal'},['Internal Portal']), ' / Register']),
         h('span', {class:'eyebrow'}, [h('span',{class:'dot'}), 'Internal Portal']),
         h('h1', {style:'font-size:38px'}, ['Register for internal access.']),
         h('p', {class:'lede'}, ['Hyre Operations only. Register below and access is confirmed from here.'])
@@ -2180,39 +2245,42 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
           h('span', {class:'section-tag'}, ['Internal Registration']),
           h('h2', {}, ['Confirm who you are'])
         ]),
-        buildRegisterOrLoginRow(buildRegistrationForm({
-          title: 'Register for the Internal Portal',
-          intro: 'Submitting notifies Hyre Operations of your registration request.',
-          submitLabel: 'Submit Registration →',
-          portalType: 'Internal',
-          fields: [
-            {
-              key: 'name', label: 'Full Name', placeholder: 'Jane Dela Cruz',
-              help: 'Enter it exactly as it appears in the system Hyre uses to track your work hours.',
-              validate: function(v){ return v ? null : 'Enter your full name to continue.'; }
-            },
-            {
-              key: 'email', label: 'Email Address', type: 'email', placeholder: 'jane@example.com',
-              help: 'Use the address on file in the system Hyre uses for HR and payroll.',
-              validate: function(v){ return /\S+@\S+\.\S+/.test(v) ? null : 'Enter a valid email address.'; }
-            },
-            {
-              key: 'password', label: 'Create a Password', type: 'password', placeholder: '••••••••', autocomplete: 'new-password',
-              help: 'At least 8 characters. You\'ll use this with your email to log in once approved.',
-              validate: function(v){ return v && v.length >= 8 ? null : 'Password must be at least 8 characters.'; }
-            },
-            {
-              key: 'confirmPassword', label: 'Confirm Password', type: 'password', placeholder: '••••••••', autocomplete: 'new-password',
-              validate: function(v){ return v ? null : 'Re-enter your password to confirm.'; }
+        h('div', {style:'display:flex;justify-content:center;'}, [
+          buildRegistrationForm({
+            title: 'Register for the Internal Portal',
+            intro: 'Submitting notifies Hyre Operations of your registration request.',
+            submitLabel: 'Submit Registration →',
+            portalType: 'Internal',
+            fields: [
+              {
+                key: 'name', label: 'Full Name', placeholder: 'Jane Dela Cruz',
+                help: 'Enter it exactly as it appears in the system Hyre uses to track your work hours.',
+                validate: function(v){ return v ? null : 'Enter your full name to continue.'; }
+              },
+              {
+                key: 'email', label: 'Email Address', type: 'email', placeholder: 'jane@example.com',
+                help: 'Use the address on file in the system Hyre uses for HR and payroll.',
+                validate: function(v){ return /\S+@\S+\.\S+/.test(v) ? null : 'Enter a valid email address.'; }
+              },
+              {
+                key: 'password', label: 'Create a Password', type: 'password', placeholder: '••••••••', autocomplete: 'new-password',
+                help: 'At least 8 characters. You\'ll use this with your email to log in once approved.',
+                validate: function(v){ return v && v.length >= 8 ? null : 'Password must be at least 8 characters.'; }
+              },
+              {
+                key: 'confirmPassword', label: 'Confirm Password', type: 'password', placeholder: '••••••••', autocomplete: 'new-password',
+                validate: function(v){ return v ? null : 'Re-enter your password to confirm.'; }
+              }
+            ],
+            subject: function(v){ return 'Internal Portal Registration — ' + v.name; },
+            body: function(v){
+              return 'Internal Portal registration request.\n\nFull Name: ' + v.name + '\nEmail: ' + v.email + '\n\nSubmitted via Hyre Training Academy Internal Portal.' +
+                '\n\n— To approve —\n1. Check this name and email against Hyre\'s internal staff records.\n2. If it matches, reply-all with just the word "Approved". That reply is the approval record.\n' +
+                '(This person cannot access the internal portal until approved here -- they log in with the email and password they set at registration.)';
             }
-          ],
-          subject: function(v){ return 'Internal Portal Registration — ' + v.name; },
-          body: function(v){
-            return 'Internal Portal registration request.\n\nFull Name: ' + v.name + '\nEmail: ' + v.email + '\n\nSubmitted via Hyre Training Academy Internal Portal.' +
-              '\n\n— To approve —\n1. Check this name and email against Hyre\'s internal staff records.\n2. If it matches, reply-all with just the word "Approved". That reply is the approval record.\n' +
-              '(This person cannot access the internal portal until approved here -- they log in with the email and password they set at registration.)';
-          }
-        }), 'Internal Portal')
+          })
+        ]),
+        h('p', {style:'text-align:center;margin-top:20px;'}, [h('a', {href:'#/portal/internal', style:'color:var(--text-faint);font-size:13px;'}, ['Already registered and approved? Log in →'])])
       ])
     ]);
     root.appendChild(hero);
