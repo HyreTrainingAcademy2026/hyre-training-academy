@@ -483,6 +483,183 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
     }
   };
 
+  // Live, per-module tracking of whether the required project portfolio has
+  // actually been submitted -- { "admin-assistant": {submitted:true, links:[...]} }.
+  // Previously renderPortfolioBlock's "submitted" flag lived only in that
+  // function's local closure and was never checked by anything else, so a
+  // trainee could mark every lesson complete and get a certificate without
+  // ever touching the non-negotiable project section. This is the real,
+  // persisted source of truth renderCertificate and the sidebar cert button
+  // now check.
+  var PORTFOLIO_SUBMITTED = {};
+
+  // Keep this in sync by hand with the `SECTIONS` array built inside
+  // renderVAWelcomePacket -- it's the authoritative list of section ids used
+  // to decide whether the Welcome Packet prerequisite is fully cleared.
+  var WP_SECTION_IDS = ['welcome','company-overview','vision-mission','policies','tools','leave-time-off','payroll','kyc-verification','international-compliance','contact-directory','quick-reference','key-reminders','acknowledgment'];
+
+  // Global Compliance and Cultural Differences Training acknowledgment,
+  // keyed by portal type -- both previously had zero completion tracking at
+  // all (just static content ending in a knowledge check), so the
+  // dashboard's "PREREQUISITE COURSE SEQUENCE" table always showed every row
+  // as statically "Reviewed & acknowledged" regardless of whether anyone had
+  // actually opened the page.
+  var GC_PROGRESS = { va: false, internal: false };
+  var CD_PROGRESS = { va: false, internal: false };
+
+  // ---------------- Prerequisite Course Gate ----------------
+  function isWPComplete(){
+    return WP_SECTION_IDS.every(function(id){ return !!WP_PROGRESS[id]; });
+  }
+  function isOnboardingComplete(portalType){
+    var items = ONBOARDING_ITEMS[portalType] || ONBOARDING_ITEMS.va;
+    var checked = ONBOARDING_CHECKED[portalType] || {};
+    return items.every(function(it){ return !!checked[it.id]; });
+  }
+  function isGlobalComplianceComplete(portalType){
+    return !!GC_PROGRESS[portalType];
+  }
+  function isCulturalDifferencesComplete(portalType){
+    return !!CD_PROGRESS[portalType];
+  }
+  // VAs clear 4 prerequisites (Welcome Packet, Onboarding Checklist, Global
+  // Compliance, Cultural Differences); Internal clears 3 (no Welcome
+  // Packet -- that's VA-specific onboarding). Any other portal type (e.g.
+  // Client, which has no role-specific modules) is never gated.
+  function prerequisitesCleared(portalType){
+    var pt = (portalType || '').trim().toLowerCase();
+    if(pt === 'va') return isWPComplete() && isOnboardingComplete('va') && isGlobalComplianceComplete('va') && isCulturalDifferencesComplete('va');
+    if(pt === 'internal') return isOnboardingComplete('internal') && isGlobalComplianceComplete('internal') && isCulturalDifferencesComplete('internal');
+    return true;
+  }
+
+  // ---------------- Single-Active-Course Lock ----------------
+  function isPortfolioSubmitted(slug){
+    return !!(PORTFOLIO_SUBMITTED[slug] && PORTFOLIO_SUBMITTED[slug].submitted);
+  }
+  // A module only counts as truly finished once every lesson is marked
+  // complete AND, for modules with a non-negotiable project requirement,
+  // that project has actually been submitted -- matching the same standard
+  // renderCertificate now enforces.
+  function isModuleFullyDone(slug){
+    var m = MODULES[slug];
+    if(!m) return false;
+    var items = buildNavItems(m);
+    if(progressCount(slug, items) !== items.length) return false;
+    if(PORTFOLIO_REQUIREMENTS[slug] && !isPortfolioSubmitted(slug)) return false;
+    return true;
+  }
+  // A trainee may only have one MODULE_ORDER course "in progress" (started
+  // but not finished) at a time -- returns that slug, or null if none is
+  // currently in progress. Scans MODULE_ORDER in a fixed order so the result
+  // is stable even if someone had touched more than one before this rule
+  // existed.
+  function getInProgressModuleSlug(){
+    for(var i=0;i<MODULE_ORDER.length;i++){
+      var slug = MODULE_ORDER[i];
+      var items = buildNavItems(MODULES[slug]);
+      if(progressCount(slug, items) > 0 && !isModuleFullyDone(slug)) return slug;
+    }
+    return null;
+  }
+
+  // ---------------- Persistence (per verified email) ----------------
+  // Everything below mirrors the existing enrollee-gate localStorage
+  // pattern, namespaced per verified email so two people sharing a browser
+  // never see each other's progress, and hydrated back into the in-memory
+  // stores above (WP_PROGRESS, ONBOARDING_CHECKED, GC_PROGRESS,
+  // CD_PROGRESS, PROGRESS, PORTFOLIO_SUBMITTED) both right after a login and
+  // at page boot for an already-verified visitor -- see loadPersistedProgress
+  // call sites in setVerifiedEmail() and the Init section at the bottom of
+  // this file.
+  function loadPersistedProgress(email, portalType){
+    if(!email) return;
+    var pt = (portalType || '').trim().toLowerCase();
+    try {
+      var wpRaw = localStorage.getItem('hyre-wp-progress-' + email);
+      if(wpRaw){
+        var wp = JSON.parse(wpRaw);
+        Object.keys(wp).forEach(function(k){ if(wp[k]) WP_PROGRESS[k] = true; });
+      }
+    } catch(e){}
+    if(pt === 'va' || pt === 'internal'){
+      try {
+        var obRaw = localStorage.getItem('hyre-onboarding-checked-' + pt + '-' + email);
+        if(obRaw){
+          var ob = JSON.parse(obRaw);
+          var bucket = ONBOARDING_CHECKED[pt] || (ONBOARDING_CHECKED[pt] = {});
+          Object.keys(ob).forEach(function(k){ if(ob[k]) bucket[k] = true; });
+        }
+      } catch(e){}
+      try { if(localStorage.getItem('hyre-gc-ack-' + pt + '-' + email) === '1') GC_PROGRESS[pt] = true; } catch(e){}
+      try { if(localStorage.getItem('hyre-cd-ack-' + pt + '-' + email) === '1') CD_PROGRESS[pt] = true; } catch(e){}
+    }
+    MODULE_ORDER.forEach(function(slug){
+      try {
+        var pRaw = localStorage.getItem('hyre-course-progress-' + slug + '-' + email);
+        if(pRaw){
+          var p = JSON.parse(pRaw);
+          var target = PROGRESS[slug] || (PROGRESS[slug] = {});
+          Object.keys(p).forEach(function(k){ if(p[k]) target[k] = true; });
+        }
+      } catch(e){}
+      try {
+        var subRaw = localStorage.getItem('hyre-portfolio-submitted-' + slug + '-' + email);
+        if(subRaw) PORTFOLIO_SUBMITTED[slug] = JSON.parse(subRaw);
+      } catch(e){}
+    });
+  }
+  function persistWPProgress(){
+    var email = getVerifiedEmail();
+    if(!email) return;
+    try { localStorage.setItem('hyre-wp-progress-' + email, JSON.stringify(WP_PROGRESS)); } catch(e){}
+  }
+  function persistOnboardingChecked(portalType){
+    var email = getVerifiedEmail();
+    if(!email || !portalType) return;
+    try { localStorage.setItem('hyre-onboarding-checked-' + portalType + '-' + email, JSON.stringify(ONBOARDING_CHECKED[portalType] || {})); } catch(e){}
+  }
+  function persistGCAck(portalType){
+    var email = getVerifiedEmail();
+    if(!email || !portalType) return;
+    try { localStorage.setItem('hyre-gc-ack-' + portalType + '-' + email, GC_PROGRESS[portalType] ? '1' : '0'); } catch(e){}
+  }
+  function persistCDAck(portalType){
+    var email = getVerifiedEmail();
+    if(!email || !portalType) return;
+    try { localStorage.setItem('hyre-cd-ack-' + portalType + '-' + email, CD_PROGRESS[portalType] ? '1' : '0'); } catch(e){}
+  }
+  function persistCourseProgress(slug){
+    var email = getVerifiedEmail();
+    if(!email) return;
+    try { localStorage.setItem('hyre-course-progress-' + slug + '-' + email, JSON.stringify(PROGRESS[slug] || {})); } catch(e){}
+  }
+  function persistPortfolioSubmitted(slug){
+    var email = getVerifiedEmail();
+    if(!email) return;
+    try { localStorage.setItem('hyre-portfolio-submitted-' + slug + '-' + email, JSON.stringify(PORTFOLIO_SUBMITTED[slug] || {submitted:false})); } catch(e){}
+  }
+
+  // ---------------- Certificate name (one per verified email) ----------------
+  // Certificates previously stored a free-typed name per *module* slug
+  // (cert-name-{slug}), so the same person could type a different name on
+  // each certificate, or type someone else's name entirely -- there was
+  // nothing tying the printed name to the verified, approved email that
+  // unlocked the course. This keys the name to the email instead and locks
+  // it after the first time it's set, so every certificate for one person
+  // carries the same name. If the login backend is ever updated to return
+  // the registrant's name from the Sheet (see setVerifiedEmail's optional
+  // third argument), that name is used automatically and the free-text
+  // entry never appears at all.
+  function getCertName(email){
+    if(!email) return '';
+    try { return localStorage.getItem('hyre-cert-name-' + email) || ''; } catch(e){ return ''; }
+  }
+  function setCertName(email, name){
+    if(!email || !name) return;
+    try { localStorage.setItem('hyre-cert-name-' + email, name); } catch(e){}
+  }
+
   var root = document.getElementById('app');
 
   // ---------------- Utilities ----------------
@@ -501,6 +678,37 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
       else el.appendChild(c);
     });
     return el;
+  }
+
+  // Anti-skim read gate: disables a "Mark Complete"/acknowledgment button
+  // for a short, reading-speed-scaled delay so content can't be skimmed
+  // (scroll straight to the bottom, click) and instantly marked done. Scaled
+  // off the visible word count of the passed content element -- roughly a
+  // quarter of an average reading pace, floored at 6s so even short pages
+  // have some friction and capped at 40s so long volumes aren't punishing.
+  // This is a lightweight deterrent, not real comprehension verification --
+  // there's no way to *prove* someone read something client-side.
+  function attachReadGate(btn, contentEl){
+    if(!btn) return;
+    var text = (contentEl && contentEl.textContent) || '';
+    var wordCount = text.trim() ? text.trim().split(/\s+/).length : 0;
+    var seconds = Math.min(40, Math.max(6, Math.round(wordCount / 4)));
+    var originalLabel = btn.textContent;
+    btn.disabled = true;
+    btn.classList.add('btn-locked');
+    var remaining = seconds;
+    btn.textContent = originalLabel + ' (' + remaining + 's)';
+    var timer = setInterval(function(){
+      remaining--;
+      if(remaining <= 0){
+        clearInterval(timer);
+        btn.disabled = false;
+        btn.classList.remove('btn-locked');
+        btn.textContent = originalLabel;
+      } else {
+        btn.textContent = originalLabel + ' (' + remaining + 's)';
+      }
+    }, 1000);
   }
 
   function chip(slug, size){
@@ -583,6 +791,7 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
   }
 
   function navigate(){
+    renderTopNav();
     navigateInner();
     // Runs after every route render, site-wide (see enhanceDefinitionParagraphs
     // for why this lives here instead of being called from each render
@@ -613,6 +822,37 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
       if(isCourseRoute(parts) && parts[0] !== 'dashboard' && getVerifiedPortalType().trim().toLowerCase() === 'client'){
         location.hash = '#/dashboard';
         return;
+      }
+
+      // Prerequisite Course Gate: VA and Internal enrollees must clear their
+      // required prerequisites (Welcome Packet for VAs, Onboarding
+      // Checklist, Global Compliance, Cultural Differences Training) before
+      // any role-specific module content unlocks -- this mirrors the
+      // "PREREQUISITE COURSE SEQUENCE" table already shown on their
+      // dashboards. Direct URL access is blocked the same as clicking a
+      // locked row would be.
+      var gateVerifiedPortalType = getVerifiedPortalType().trim().toLowerCase();
+      var isRoleSpecificModuleRoute = (parts[0] === 'module' || parts[0] === 'learn' || parts[0] === 'certificate') && parts[1] && MODULES[parts[1]];
+      var isAIAutomationRoute = parts[0] === 'portal' && parts[2] === 'ai-automation';
+      if((isRoleSpecificModuleRoute || isAIAutomationRoute) && (gateVerifiedPortalType === 'va' || gateVerifiedPortalType === 'internal') && !prerequisitesCleared(gateVerifiedPortalType)){
+        location.hash = '#/dashboard';
+        return;
+      }
+
+      // Single-Active-Course Lock: once a VA/Internal trainee has started
+      // (but not finished) one training module, entering or continuing a
+      // *different* module is blocked until the in-progress one is fully
+      // done -- matches "I shouldn't be able to start any other course
+      // until I complete my current one." The Details/marketing page
+      // (parts[0]==='module') stays open for browsing since it never
+      // mutates progress; only actually entering the LMS or its certificate
+      // is locked.
+      if((parts[0] === 'learn' || parts[0] === 'certificate') && parts[1] && MODULES[parts[1]] && (gateVerifiedPortalType === 'va' || gateVerifiedPortalType === 'internal')){
+        var inProgressSlug = getInProgressModuleSlug();
+        if(inProgressSlug && inProgressSlug !== parts[1]){
+          location.hash = '#/dashboard';
+          return;
+        }
       }
     }
     if(parts[0] === 'modules'){ location.hash = '#/dashboard'; return; }
@@ -677,12 +917,18 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
   function getVerifiedEmail(){
     try { return localStorage.getItem(ENROLLEE_GATE_KEY) || ''; } catch(e){ return ''; }
   }
-  function setVerifiedEmail(email, portalType){
+  // fullName is optional and only ever arrives if/when the login backend
+  // starts returning the registrant's name from the Sheet -- when present,
+  // it's saved as the locked certificate name immediately (but never
+  // overwrites a name already locked in from an earlier login).
+  function setVerifiedEmail(email, portalType, fullName){
     try {
       localStorage.setItem(ENROLLEE_GATE_KEY, email);
       localStorage.setItem(ENROLLEE_GATE_TS_KEY, String(Date.now()));
       if(portalType) localStorage.setItem(ENROLLEE_GATE_PORTAL_KEY, portalType);
     } catch(e){}
+    loadPersistedProgress(email, portalType || getVerifiedPortalType());
+    if(fullName && !getCertName(email)) setCertName(email, fullName);
   }
   function getVerifiedPortalType(){
     try { return localStorage.getItem(ENROLLEE_GATE_PORTAL_KEY) || ''; } catch(e){ return ''; }
@@ -759,7 +1005,7 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
       err.style.display = 'none';
       loginRequest(email, password).then(function(result){
         if(result && result.ok){
-          setVerifiedEmail(email, result.portalType || '');
+          setVerifiedEmail(email, result.portalType || '', result.name || result.fullName || result.full_name || '');
           onVerified();
           return;
         }
@@ -808,7 +1054,21 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
   }
 
   // ---------------- Top Nav ----------------
+  // Rebuilt on every navigate() (not just once at page load) so it reflects
+  // the current login state: previously it rendered once at boot, so an
+  // already-logged-in visitor still saw "Start Training" pointing at the
+  // login gate and got asked to log in again even though they could get
+  // back to their dashboard by pressing back. Safe to call repeatedly --
+  // any previous .topnav is removed first so it never duplicates.
   function renderTopNav(){
+    var existing = document.querySelector('.topnav');
+    if(existing) existing.parentNode.removeChild(existing);
+
+    var email = getVerifiedEmail();
+    var startHref = email ? '#/dashboard' : '#/portals';
+    var startLabel = email ? 'My Dashboard' : 'Start Training';
+    var startNavKey = email ? 'dashboard' : 'cta';
+
     var nav = h('div', {class:'topnav'}, [
       h('div', {class:'topnav-inner'}, [
         h('a', {class:'brand', href:'#/'}, [
@@ -820,7 +1080,7 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
           h('a', {href:'#/', 'data-nav':'home'}, ['Home']),
           h('a', {href:'#/about', 'data-nav':'about'}, ['About']),
           h('a', {href:'#/enrollment', 'data-nav':'enrollment'}, ['Enrollment']),
-          h('a', {href:'#/portals', 'data-nav':'cta', class:'nav-cta'}, ['Start Training'])
+          h('a', {href:startHref, 'data-nav':startNavKey, class:'nav-cta'}, [startLabel])
         ])
       ])
     ]);
@@ -1025,6 +1285,35 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
   function renderModuleDetail(slug){
     var m = MODULES[slug];
     var t = THEME[slug];
+
+    // Previously this page never checked progress at all -- "Ready to start
+    // X?" and "Enter Course →" showed unconditionally, even right after
+    // clicking "Finish Module" on a course that was actually 100% done,
+    // which read as broken/confusing. Now it reflects real state: not
+    // started, in progress, or fully done (lessons + any required project
+    // submission).
+    var navItemsForSlug = buildNavItems(m);
+    var doneCount = progressCount(slug, navItemsForSlug);
+    var lessonsDone = doneCount === navItemsForSlug.length;
+    var isFullyDone = isModuleFullyDone(slug);
+    var awaitingPortfolio = lessonsDone && !isFullyDone;
+
+    var heroActions;
+    if(isFullyDone){
+      heroActions = h('div', {class:'hero-actions'}, [
+        h('a', {class:'btn btn-primary', href:'#/certificate/'+slug}, ['🎓 View Certificate']),
+        h('a', {class:'btn btn-ghost', href:'#/learn/'+slug}, ['Review Course →'])
+      ]);
+    } else if(awaitingPortfolio){
+      heroActions = h('div', {class:'hero-actions'}, [
+        h('a', {class:'btn btn-primary', href:'#/learn/'+slug+'/standards'}, ['Submit Required Project →'])
+      ]);
+    } else {
+      heroActions = h('div', {class:'hero-actions'}, [
+        h('a', {class:'btn btn-primary', href:'#/learn/'+slug}, [doneCount > 0 ? 'Continue Course →' : 'Enter Course →'])
+      ]);
+    }
+
     var hero = h('div', {class:'module-hero'}, [
       h('div', {class:'wrap'}, [
         h('div', {class:'breadcrumb'}, [h('a',{href:'#/portals'},['Portals']), ' / ', m.short]),
@@ -1032,7 +1321,8 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
           chip(slug, 52),
           h('div', {}, [
             h('h1', {style:'font-size:38px;margin-bottom:8px;'}, [m.name]),
-            h('p', {class:'lede', style:'margin:0;font-size:17px;'}, [m.tagline])
+            h('p', {class:'lede', style:'margin:0;font-size:17px;'}, [m.tagline]),
+            isFullyDone ? h('span', {class:'status-badge', style:'margin-top:10px;display:inline-block;'}, ['✓ Completed']) : null
           ])
         ]),
         h('div', {class:'stat-row'}, [
@@ -1041,9 +1331,7 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
           h('div', {class:'stat-box'}, [h('div',{class:'num'},['80%']), h('div',{class:'label'},['Pass Threshold'])]),
           h('div', {class:'stat-box'}, [h('div',{class:'num'},[PORTFOLIO_REQUIREMENTS[slug] ? '8/8' : '7/7']), h('div',{class:'label'},['Standards Met'])])
         ]),
-        h('div', {class:'hero-actions'}, [
-          h('a', {class:'btn btn-primary', href:'#/learn/'+slug}, ['Enter Course →'])
-        ])
+        heroActions
       ])
     ]);
 
@@ -1078,15 +1366,36 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
       ])
     ]);
 
+    var ctaBandInner;
+    if(isFullyDone){
+      ctaBandInner = [
+        h('h2', {}, ['You\'ve completed ' + m.short + '! 🎉']),
+        h('p', {}, ['Every lesson finished' + (PORTFOLIO_REQUIREMENTS[slug] ? ', and your required project has been submitted for review.' : '.') + ' Your certificate is ready.']),
+        h('div', {class:'cta-actions'}, [
+          h('a', {class:'btn btn-primary', href:'#/certificate/'+slug}, ['🎓 View Certificate']),
+          h('a', {class:'btn btn-ghost', href:'#/learn/'+slug}, ['Review Course →'])
+        ])
+      ];
+    } else if(awaitingPortfolio){
+      ctaBandInner = [
+        h('h2', {}, ['One step left: submit your project']),
+        h('p', {}, ['Every lesson is complete. This module also requires the non-negotiable project submission (Standard 8) before your certificate is issued.']),
+        h('div', {class:'cta-actions'}, [
+          h('a', {class:'btn btn-primary', href:'#/learn/'+slug+'/standards'}, ['Submit Required Project →'])
+        ])
+      ];
+    } else {
+      ctaBandInner = [
+        h('h2', {}, [(doneCount > 0 ? 'Pick up where you left off in ' : 'Ready to start ') + m.short + '?']),
+        h('p', {}, ['Every volume, every framework, every standard: right where you left off.']),
+        h('div', {class:'cta-actions'}, [
+          h('a', {class:'btn btn-primary', href:'#/learn/'+slug}, [doneCount > 0 ? 'Continue Course →' : 'Enter Course →'])
+        ])
+      ];
+    }
     var ctaSec = h('section', {}, [
       h('div', {class:'wrap'}, [
-        h('div', {class:'cta-band'}, [
-          h('h2', {}, ['Ready to start ' + m.short + '?']),
-          h('p', {}, ['Every volume, every framework, every standard: right where you left off.']),
-          h('div', {class:'cta-actions'}, [
-            h('a', {class:'btn btn-primary', href:'#/learn/'+slug}, ['Enter Course →'])
-          ])
-        ])
+        h('div', {class:'cta-band'}, ctaBandInner)
       ])
     ]);
 
@@ -1165,7 +1474,6 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
 
     var mode = 'individual'; // or 'consolidated'
     var linkCount = req.minProjects;
-    var submitted = false;
 
     var wrap = h('div', {class:'portfolio-block'});
 
@@ -1179,10 +1487,18 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
         ])
       ]));
 
-      if(submitted){
+      // isPortfolioSubmitted() reads the persisted PORTFOLIO_SUBMITTED store
+      // (per module, per verified email) instead of a local closure
+      // variable -- previously "submitted" lived only in this function's own
+      // scope, so it reset on every re-render/navigation and renderCertificate
+      // never saw it, meaning a trainee could get a certificate without ever
+      // actually submitting the required project links.
+      if(isPortfolioSubmitted(slug)){
+        var rec = PORTFOLIO_SUBMITTED[slug] || {};
         wrap.appendChild(h('div', {class:'std-card', style:'border-color:var(--green);'}, [
           h('h4', {style:'margin:0 0 8px;font-size:16px;color:var(--green);'}, ['✓ Submitted for certification review']),
-          h('p', {style:'margin:0;color:var(--text-dim);font-size:14px;'}, ['Your reviewer will confirm receipt and follow up with next steps. This demo site does not send or store submissions anywhere.'])
+          h('p', {style:'margin:0;color:var(--text-dim);font-size:14px;'}, ['Your reviewer will confirm receipt and follow up with next steps. This demo site does not send or store submissions anywhere beyond this browser.']),
+          rec.links && rec.links.length ? h('ul', {style:'margin:10px 0 0;padding-left:18px;color:var(--text-dim);font-size:13px;'}, rec.links.map(function(l){ return h('li', {}, [l]); })) : null
         ]));
         return;
       }
@@ -1234,7 +1550,12 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
               errMsg.style.display = 'block';
               return;
             }
-            submitted = true;
+            PORTFOLIO_SUBMITTED[slug] = {
+              submitted: true,
+              links: inputs.map(function(inp){ return inp.value.trim(); }),
+              submittedAt: Date.now()
+            };
+            persistPortfolioSubmitted(slug);
             renderInner();
           }
         }, ['Submit for Certification Review'])
@@ -1697,6 +2018,12 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
     }));
   }
 
+  // Rows may carry a live `done` boolean (from the completion-check
+  // functions above) -- when present, the Status Required column shows the
+  // actual cleared/uncleared state instead of always showing the static
+  // requirement text, which previously made every prerequisite look
+  // "Reviewed & acknowledged" the moment the dashboard first opened,
+  // regardless of whether the trainee had done anything yet.
   function buildPrereqTable(rows, note){
     return h('div', {}, [
       h('table', {}, [
@@ -1705,7 +2032,13 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
           return h('tr', {}, [
             h('td',{},[String(r.step)]),
             h('td',{}, [r.href ? h('a', {href:r.href, style:'color:var(--accent);font-weight:600;text-decoration:none;'}, [r.course]) : r.course]),
-            h('td',{},[r.status])
+            h('td',{}, [
+              r.done === true
+                ? h('span', {style:'color:#2e7d32;font-weight:600;'}, ['✓ Complete'])
+                : r.done === false
+                  ? h('span', {style:'color:var(--text-dim);'}, ['Not yet — ' + r.status])
+                  : r.status
+            ])
           ]);
         }))
       ]),
@@ -1724,17 +2057,59 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
   // alphabetically by title, one row per course: title, a Details link (the
   // marketing/overview page) and a Start link (straight into the material).
   function buildModulesTable(portalType){
+    var pt = (portalType || '').trim().toLowerCase();
+    // prerequisitesCleared() returns true for any portal type outside
+    // va/internal, so this is a no-op for anything else.
+    var cleared = prerequisitesCleared(pt);
+    var inProgressSlug = cleared ? getInProgressModuleSlug() : null;
+
     var items = MODULE_ORDER.map(function(slug){
-      return { name: MODULES[slug].name, detailsHref: '#/module/'+slug, startHref: '#/learn/'+slug };
+      var reason = null;
+      if(!cleared) reason = 'prereqs';
+      else if(inProgressSlug && inProgressSlug !== slug) reason = 'other-in-progress';
+      return {
+        name: MODULES[slug].name,
+        detailsHref: '#/module/'+slug,
+        startHref: '#/learn/'+slug,
+        locked: !!reason,
+        lockReason: reason
+      };
     });
     var aiHref = '#/portal/' + (portalType || 'va') + '/ai-automation';
-    items.push({ name: 'AI & Automation for Virtual Assistants', detailsHref: aiHref, startHref: aiHref });
+    items.push({ name: 'AI & Automation for Virtual Assistants', detailsHref: aiHref, startHref: aiHref, locked: !cleared, lockReason: cleared ? null : 'prereqs' });
     items.sort(function(a, b){
       return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
     });
-    return h('table', {class:'modules-table'}, [
+
+    var lockedNote = null;
+    if(!cleared && (pt === 'va' || pt === 'internal')){
+      lockedNote = h('p', {style:'margin:0 0 14px;color:var(--text-dim);font-size:13.5px;'}, ['🔒 Complete your prerequisite courses above to unlock these modules.']);
+    } else if(inProgressSlug){
+      lockedNote = h('p', {style:'margin:0 0 14px;color:var(--text-dim);font-size:13.5px;'}, [
+        '🔒 ' + MODULES[inProgressSlug].name + ' is in progress. Finish it (including its certificate) before starting another module.'
+      ]);
+    }
+
+    var table = h('table', {class:'modules-table'}, [
       h('thead', {}, [h('tr', {}, [h('th',{},['Training Course Title']), h('th',{},['Details']), h('th',{},['Start'])])]),
       h('tbody', {}, items.map(function(it){
+        if(it.locked){
+          // A module the trainee just hasn't started yet (locked only
+          // because a *different* course is in progress) still allows
+          // browsing its Details/marketing page -- that page never mutates
+          // progress. Only the prerequisite gate blocks Details entirely,
+          // matching the router's own rule (see isRoleSpecificModuleRoute
+          // vs. the Single-Active-Course Lock check in navigateInner).
+          var lockLabel = it.lockReason === 'other-in-progress' ? '🔒 Locked — finish current course first' : '🔒 Locked';
+          var detailsCell = it.lockReason === 'other-in-progress'
+            ? h('td', {class:'actions-cell'}, [h('a', {class:'btn btn-sm btn-ghost', href:it.detailsHref}, ['Details'])])
+            : h('td', {class:'actions-cell'}, [h('span', {class:'btn btn-sm btn-ghost', style:'pointer-events:none;opacity:.6;'}, ['Details'])]);
+          return h('tr', {style:'opacity:.55;'}, [
+            h('td', {}, [it.name + '  ', h('span', {style:'font-size:12px;color:var(--text-faint);'}, [lockLabel])]),
+            detailsCell,
+            h('td', {class:'actions-cell'}, [h('span', {class:'btn btn-sm btn-primary', style:'pointer-events:none;opacity:.6;'}, ['Start →'])])
+          ]);
+        }
         return h('tr', {}, [
           h('td', {}, [it.name]),
           h('td', {class:'actions-cell'}, [h('a', {class:'btn btn-sm btn-ghost', href:it.detailsHref}, ['Details'])]),
@@ -1742,6 +2117,7 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
         ]);
       }))
     ]);
+    return h('div', {}, [lockedNote, table]);
   }
 
   // ---------------- Hyperlinked Table of Contents (jump-links) ----------------
@@ -1811,11 +2187,13 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
             h('div', {class:'std-num'}, ['PREREQUISITE COURSE SEQUENCE']),
             h('p', {style:'margin:6px 0 0;color:var(--text-dim);font-size:13.5px;'}, ['All VAs must complete the following in order before accessing any other training modules:']),
             buildPrereqTable([
-              {step:1, course:'VA Welcome Packet', status:'Reviewed & acknowledged', href:'#/portal/va/welcome-packet'},
-              {step:2, course:'New VA Onboarding Checklist', status:'Completed & verified by Account Manager', href:'#/portal/va/onboarding-checklist'},
-              {step:3, course:'Global Compliance, Data Privacy & Ethics', status:'Reviewed & acknowledged', href:'#/portal/va/global-compliance'},
-              {step:4, course:'Cultural Differences Training', status:'Reviewed & acknowledged', href:'#/portal/va/cultural-differences'}
-            ], 'Once all four prerequisites are cleared, VAs may access role-specific modules (Articulation, Social Media Management, Admin Assistant, Executive Assistant, Paid Ads Specialist, AI & Automation).'),
+              {step:1, course:'VA Welcome Packet', status:'Reviewed & acknowledged', href:'#/portal/va/welcome-packet', done:isWPComplete()},
+              {step:2, course:'New VA Onboarding Checklist', status:'Completed & verified by Account Manager', href:'#/portal/va/onboarding-checklist', done:isOnboardingComplete('va')},
+              {step:3, course:'Global Compliance, Data Privacy & Ethics', status:'Reviewed & acknowledged', href:'#/portal/va/global-compliance', done:isGlobalComplianceComplete('va')},
+              {step:4, course:'Cultural Differences Training', status:'Reviewed & acknowledged', href:'#/portal/va/cultural-differences', done:isCulturalDifferencesComplete('va')}
+            ], prerequisitesCleared('va')
+              ? 'All four prerequisites are cleared -- role-specific modules (Articulation, Social Media Management, Admin Assistant, Executive Assistant, Paid Ads Specialist, AI & Automation) are unlocked below.'
+              : 'Once all four prerequisites are cleared, VAs may access role-specific modules (Articulation, Social Media Management, Admin Assistant, Executive Assistant, Paid Ads Specialist, AI & Automation).'),
             buildAnnouncementsNote('No current announcements.')
           ]),
           h('div', {}, [
@@ -1844,10 +2222,12 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
             h('div', {class:'std-num'}, ['ONBOARDING SEQUENCE']),
             h('p', {style:'margin:6px 0 0;color:var(--text-dim);font-size:13.5px;'}, ['All internal team members must complete the following in order before accessing training modules:']),
             buildPrereqTable([
-              {step:1, course:'Team Onboarding Checklist', status:'Completed & verified by your manager', href:'#/portal/internal/onboarding-checklist'},
-              {step:2, course:'Global Compliance, Data Privacy & Ethics', status:'Reviewed & acknowledged', href:'#/portal/internal/global-compliance'},
-              {step:3, course:'Cultural Differences Training', status:'Reviewed & acknowledged', href:'#/portal/internal/cultural-differences'}
-            ], 'Once all three prerequisites are cleared, internal team members may access role-specific training modules.'),
+              {step:1, course:'Team Onboarding Checklist', status:'Completed & verified by your manager', href:'#/portal/internal/onboarding-checklist', done:isOnboardingComplete('internal')},
+              {step:2, course:'Global Compliance, Data Privacy & Ethics', status:'Reviewed & acknowledged', href:'#/portal/internal/global-compliance', done:isGlobalComplianceComplete('internal')},
+              {step:3, course:'Cultural Differences Training', status:'Reviewed & acknowledged', href:'#/portal/internal/cultural-differences', done:isCulturalDifferencesComplete('internal')}
+            ], prerequisitesCleared('internal')
+              ? 'All three prerequisites are cleared -- role-specific training modules are unlocked below.'
+              : 'Once all three prerequisites are cleared, internal team members may access role-specific training modules.'),
             buildAnnouncementsNote('No current announcements.')
           ]),
           h('div', {}, [
@@ -1935,7 +2315,7 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
         var isChecked = !!checked[it.id];
         return h('div', {
           class:'checklist-row',
-          onclick:function(){ checked[it.id] = !checked[it.id]; renderInner(); }
+          onclick:function(){ checked[it.id] = !checked[it.id]; persistOnboardingChecked(portalType); renderInner(); }
         }, [
           h('div', {class:'checklist-box' + (isChecked ? ' checked' : '')}, [isChecked ? '✓' : '']),
           h('div', {}, [
@@ -2066,9 +2446,43 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
       '<li>Name two things you must never do with client data and a free AI tool.</li>' +
       '<li>What must happen before an AI notetaker records a client call?</li>' +
       '<li>Where do you report a suspected data breach or ethics violation?</li>' +
-      '</ol>' +
-      '<p style="margin-top:36px;"><a href="' + backHref + '" class="btn btn-ghost">← Back to ' + backLabel + '</a></p>'
+      '</ol>'
     );
+
+    // This course has no lesson-by-lesson progress tracking like the Welcome
+    // Packet or a checklist -- it's a single read-through page -- so
+    // completion is a single explicit acknowledgment, mirroring how the
+    // physical/legacy version of this training would have a trainee sign an
+    // attestation after reading it. This is one of the required
+    // Prerequisite Course Gate steps shown on the dashboard.
+    var isAcked = isGlobalComplianceComplete(portalType);
+    var ackBtn = h('button', {
+      class:'btn btn-primary',
+      onclick:function(){
+        GC_PROGRESS[portalType] = true;
+        persistGCAck(portalType);
+        root.innerHTML = '';
+        renderGlobalCompliancePage(portalType);
+      }
+    }, ['I Acknowledge — Mark Complete']);
+    var acknowledgment = h('section', {id:'acknowledgment', style:'padding-top:8px;padding-bottom:20px;'}, [
+      h('div', {class:'wrap'}, [
+        h('div', {class:'std-card', style:'max-width:820px;'}, [
+          h('div', {class:'std-num'}, ['ACKNOWLEDGMENT']),
+          h('p', {style:'margin:10px 0 0;color:var(--text-dim);font-size:14px;'}, [
+            isAcked
+              ? 'You have acknowledged this course. It counts as cleared toward your prerequisite course sequence.'
+              : 'By clicking below, you confirm you have read and understood the Global Compliance, Data Privacy & Ethics course above. This is required to unlock your role-specific training modules.'
+          ]),
+          h('div', {style:'margin-top:16px;'}, [
+            isAcked
+              ? h('span', {class:'btn btn-ghost', style:'pointer-events:none;opacity:.8;'}, ['✓ Acknowledged'])
+              : ackBtn
+          ]),
+          h('p', {style:'margin-top:20px;'}, [h('a', {href:backHref, class:'btn btn-ghost'}, ['← Back to ' + backLabel])])
+        ])
+      ])
+    ]);
 
     root.appendChild(hero);
     root.appendChild(objectives);
@@ -2077,7 +2491,9 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
     root.appendChild(ethics);
     root.appendChild(reporting);
     root.appendChild(check);
+    root.appendChild(acknowledgment);
     root.appendChild(renderFooter());
+    if(!isAcked) attachReadGate(ackBtn, root);
   }
 
   // ---------------- VA Welcome Packet ----------------
@@ -2584,24 +3000,29 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
       onclick:function(){ toggleWPComplete(sections, current); }
     }, [isDone ? '✓ Read' : 'Mark as Read']);
 
+    var contentEl = h('div', {class:'content-prose', html: current.bodyHtml});
+
     var main = h('div', {class:'lms-main'}, [
       h('div', {class:'lms-content-wrap'}, [
         h('div', {class:'lesson-topbar'}, [
           h('div', {class:'lesson-eyebrow'}, ['VA Welcome Packet · ' + current.group])
         ]),
-        h('div', {class:'content-prose', html: current.bodyHtml}),
+        contentEl,
         h('div', {class:'lesson-pager'}, [
           prev ? h('a', {class:'btn btn-ghost', href:'#/portal/va/welcome-packet/'+prev.id}, ['← ' + prev.navTitle]) : h('span', {}),
           h('div', {class:'lesson-pager-right'}, [completeBtn, forwardBtn])
         ])
       ])
     ]);
+    // Anti-skim: same reading-speed-scaled delay used on LMS lessons.
+    if(!isDone) attachReadGate(completeBtn, contentEl);
     return main;
   }
 
   function toggleWPComplete(sections, current){
     if(WP_PROGRESS[current.id]) delete WP_PROGRESS[current.id];
     else WP_PROGRESS[current.id] = true;
+    persistWPProgress();
     root.innerHTML = '';
     renderVAWelcomePacket(current.id);
   }
@@ -2869,6 +3290,43 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
       '<p style="margin-top:36px;"><a href="' + backHref + '" class="btn btn-ghost">← Back to ' + backLabel + '</a></p>';
     var finalSec = packetSection('final-check', 'Final Knowledge Check', finalHtml);
 
+    // Only a prerequisite (and therefore only gated) for VA/Internal --
+    // the Client variant is a standalone resource with no completion
+    // requirement, so it gets no acknowledgment step.
+    var isPrereqVariant = variant !== 'client';
+    var isAcked = isPrereqVariant && isCulturalDifferencesComplete(portalType);
+    var ackBtn = null;
+    var acknowledgment = null;
+    if(isPrereqVariant){
+      ackBtn = h('button', {
+        class:'btn btn-primary',
+        onclick:function(){
+          CD_PROGRESS[portalType] = true;
+          persistCDAck(portalType);
+          root.innerHTML = '';
+          renderCulturalDifferencesPage(portalType);
+        }
+      }, ['I Acknowledge — Mark Complete']);
+      acknowledgment = h('section', {id:'acknowledgment', style:'padding-top:8px;padding-bottom:20px;'}, [
+        h('div', {class:'wrap'}, [
+          h('div', {class:'std-card', style:'max-width:820px;'}, [
+            h('div', {class:'std-num'}, ['ACKNOWLEDGMENT']),
+            h('p', {style:'margin:10px 0 0;color:var(--text-dim);font-size:14px;'}, [
+              isAcked
+                ? 'You have acknowledged this course. It counts as cleared toward your prerequisite course sequence.'
+                : 'By clicking below, you confirm you have completed the Cultural Differences Training above, including the Final Knowledge Check. This is required to unlock your role-specific training modules.'
+            ]),
+            h('div', {style:'margin-top:16px;'}, [
+              isAcked
+                ? h('span', {class:'btn btn-ghost', style:'pointer-events:none;opacity:.8;'}, ['✓ Acknowledged'])
+                : ackBtn
+            ]),
+            h('p', {style:'margin-top:20px;'}, [h('a', {href:backHref, class:'btn btn-ghost'}, ['← Back to ' + backLabel])])
+          ])
+        ])
+      ]);
+    }
+
     root.appendChild(hero);
     root.appendChild(objectives);
     root.appendChild(prereqSec);
@@ -2878,11 +3336,13 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
     root.appendChild(preAssessment);
     moduleSections.forEach(function(sec){ root.appendChild(sec); });
     root.appendChild(finalSec);
+    if(acknowledgment) root.appendChild(acknowledgment);
     root.appendChild(renderFooter());
     // Reveal-button answers, same interaction used on graded LMS lessons --
     // makes the Scenario Exercises and Final Knowledge Check genuinely
     // interactive instead of a plain answer key printed in the open.
     setTimeout(function(){ enhanceQuizzes(root); }, 0);
+    if(isPrereqVariant && !isAcked) attachReadGate(ackBtn, root);
   }
 
   function renderPortalChooser(){
@@ -2953,7 +3413,7 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
       err.style.display = 'none';
       loginRequest(email, password).then(function(result){
         if(result && result.ok){
-          setVerifiedEmail(email, result.portalType || '');
+          setVerifiedEmail(email, result.portalType || '', result.name || result.fullName || result.full_name || '');
           location.hash = '#/dashboard';
           return;
         }
@@ -3253,7 +3713,12 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
       h('div', {class:'progress-label', id:'progress-label'}, [done + ' / ' + items.length + ' complete (' + pct + '%)'])
     ];
     if(done === items.length){
-      headChildren.push(h('a', {class:'btn btn-sm btn-primary', href:'#/certificate/'+slug, style:'margin-top:10px;width:100%;text-align:center;'}, ['🎓 View Certificate']));
+      // Lessons alone don't guarantee the certificate is unlocked -- modules
+      // with a non-negotiable project requirement also need it submitted
+      // (renderCertificate enforces this); still link to the certificate
+      // page either way so that page can explain exactly what's left.
+      var portfolioOk = !PORTFOLIO_REQUIREMENTS[slug] || isPortfolioSubmitted(slug);
+      headChildren.push(h('a', {class:'btn btn-sm btn-primary', href:'#/certificate/'+slug, style:'margin-top:10px;width:100%;text-align:center;'}, [portfolioOk ? '🎓 View Certificate' : '🔒 Certificate (project required)']));
     }
     var sidebar = h('div', {class:'lms-sidebar', id:'lms-sidebar'}, [
       h('div', {class:'lms-sidebar-head'}, headChildren)
@@ -3313,12 +3778,14 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
       onclick:function(){ toggleComplete(slug, items, current); }
     }, [isDone ? '✓ Completed' : 'Mark Complete']);
 
+    var contentEl = h('div', {class:'content-prose', html: current.doc.html});
+
     var main = h('div', {class:'lms-main'}, [
       h('div', {class:'lms-content-wrap'}, [
         h('div', {class:'lesson-topbar'}, [
           h('div', {class:'lesson-eyebrow'}, [m.short + ' · ' + current.group])
         ]),
-        h('div', {class:'content-prose', html: current.doc.html}),
+        contentEl,
         current.kind === 'standards' && PORTFOLIO_REQUIREMENTS[slug] ? h('div', {class:'content-prose'}, [
           h('h2', {}, ['Standard 8: Portfolio & Completed Project Submission']),
           h('p', {}, ['Non-negotiable. Applies before this module\'s certificate is issued.']),
@@ -3331,6 +3798,10 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
       ])
     ]);
 
+    // Anti-skim: don't let "Mark Complete" fire the instant a lesson loads
+    // (i.e. "scroll straight down and mark as complete" without reading).
+    if(!isDone) attachReadGate(completeBtn, contentEl);
+
     setTimeout(function(){ enhanceQuizzes(main); linkifyVolumeReferences(main, slug); }, 0);
     return main;
   }
@@ -3340,43 +3811,83 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
     var m = MODULES[slug];
     var items = buildNavItems(m);
     var done = progressCount(slug, items);
-    var complete = done === items.length;
+    var lessonsComplete = done === items.length;
+    // No certificate on quiz/lesson completion alone -- modules with a
+    // non-negotiable project requirement (PORTFOLIO_REQUIREMENTS) also need
+    // that project actually submitted (isPortfolioSubmitted), matching
+    // isModuleFullyDone()'s definition of "finished" used everywhere else.
+    var portfolioOk = !PORTFOLIO_REQUIREMENTS[slug] || isPortfolioSubmitted(slug);
+    var complete = lessonsComplete && portfolioOk;
 
     if(!complete){
+      var lockedMsg, lockedCta;
+      if(!lessonsComplete){
+        lockedMsg = 'Complete every lesson in ' + m.name + ' first — ' + done + ' / ' + items.length + ' done so far.';
+        lockedCta = h('a', {class:'btn btn-primary', href:'#/learn/'+slug}, ['Back to course →']);
+      } else {
+        lockedMsg = 'Every lesson is done, but ' + m.name + ' also requires the non-negotiable project submission (Standard 8) before certification. Submit your completed project links on the Standards & Compliance page first.';
+        lockedCta = h('a', {class:'btn btn-primary', href:'#/learn/'+slug+'/standards'}, ['Go to Standards & Compliance →']);
+      }
       root.appendChild(h('section', {}, [
         h('div', {class:'wrap center', style:'padding:100px 0'}, [
           h('h2', {}, ['Certificate locked']),
-          h('p', {style:'color:var(--text-dim);max-width:440px;margin:10px auto 24px;'}, [
-            'Complete every lesson in ' + m.name + ' first — ' + done + ' / ' + items.length + ' done so far.'
-          ]),
-          h('a', {class:'btn btn-primary', href:'#/learn/'+slug}, ['Back to course →'])
+          h('p', {style:'color:var(--text-dim);max-width:460px;margin:10px auto 24px;'}, [lockedMsg]),
+          lockedCta
         ])
       ]));
       return;
     }
 
-    var storedName = '';
-    try { storedName = localStorage.getItem('cert-name-'+slug) || ''; } catch(e){}
+    var email = getVerifiedEmail();
+    // The certificate name is keyed to the verified email (not the module
+    // slug) and locks in permanently the first time it's set, so the same
+    // person can't type a different name per certificate, and a shared
+    // browser can't be used to mint a certificate for someone else. Once a
+    // login backend name is available, setVerifiedEmail() already locks it
+    // in automatically and this free-text entry never appears.
+    var storedName = getCertName(email);
     var today = new Date();
     var dateStr = today.toLocaleDateString('en-US', {year:'numeric', month:'long', day:'numeric'});
-
-    var nameInput = h('input', {type:'text', placeholder:'Type your full name', value: storedName, class:'cert-name-input'});
     var certNameEl = h('div', {class:'cert-name', id:'cert-name-display'}, [storedName || '_____________________']);
 
-    nameInput.addEventListener('input', function(){
-      var v = nameInput.value.trim();
-      certNameEl.textContent = v || '_____________________';
-      try { localStorage.setItem('cert-name-'+slug, v); } catch(e){}
-    });
+    var nameControls;
+    if(storedName){
+      nameControls = [
+        h('label', {style:'font-size:13px;color:var(--text-dim);font-weight:700;display:block;margin-bottom:6px;'}, ['Name for certificate']),
+        h('div', {style:'font-size:15px;font-weight:600;'}, [storedName]),
+        h('p', {style:'margin:6px 0 0;color:var(--text-faint);font-size:12px;max-width:340px;'}, ['Set from your account and used on every certificate you earn. Contact your Account Manager if this needs to be corrected.'])
+      ];
+    } else {
+      var nameInput = h('input', {type:'text', placeholder:'Type your full name', class:'cert-name-input'});
+      var lockBtn = h('button', {class:'btn btn-sm btn-ghost', style:'margin-top:8px;', disabled:'disabled'}, ['Lock in this name']);
+      nameInput.addEventListener('input', function(){
+        var v = nameInput.value.trim();
+        certNameEl.textContent = v || '_____________________';
+        lockBtn.disabled = v.length < 2;
+      });
+      lockBtn.addEventListener('click', function(){
+        var v = nameInput.value.trim();
+        if(v.length < 2) return;
+        setCertName(email, v);
+        root.innerHTML = '';
+        renderCertificate(slug);
+      });
+      nameControls = [
+        h('label', {style:'font-size:13px;color:var(--text-dim);font-weight:700;display:block;margin-bottom:6px;'}, ['Name for certificate']),
+        nameInput,
+        h('p', {style:'margin:6px 0 0;color:var(--text-faint);font-size:12px;max-width:340px;'}, ['This is a one-time entry -- once locked in, it\'s used on every certificate you earn and can\'t be changed here.']),
+        lockBtn
+      ];
+    }
 
     var section = h('section', {}, [
       h('div', {class:'wrap', style:'padding:60px 0;'}, [
-        h('div', {class:'cert-controls no-print'}, [
-          h('label', {style:'font-size:13px;color:var(--text-dim);font-weight:700;display:block;margin-bottom:6px;'}, ['Name for certificate']),
-          nameInput,
-          h('button', {class:'btn btn-primary', style:'margin-top:14px;', onclick:function(){ window.print(); }}, ['🖨 Print / Save as PDF']),
-          h('a', {class:'btn btn-ghost', style:'margin-top:14px;margin-left:10px;', href:'#/learn/'+slug}, ['← Back to course'])
-        ]),
+        h('div', {class:'cert-controls no-print'},
+          nameControls.concat([
+            h('button', {class:'btn btn-primary', style:'margin-top:14px;', onclick:function(){ window.print(); }}, ['🖨 Print / Save as PDF']),
+            h('a', {class:'btn btn-ghost', style:'margin-top:14px;margin-left:10px;', href:'#/learn/'+slug}, ['← Back to course'])
+          ])
+        ),
         h('div', {class:'certificate', id:'certificate-doc'}, [
           h('div', {class:'cert-mark'}, ['HYRE TRAINING ACADEMY']),
           h('div', {class:'cert-title'}, ['Certificate of Completion']),
@@ -3399,6 +3910,7 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
   function toggleComplete(slug, items, current){
     if(PROGRESS[slug][current.id]) delete PROGRESS[slug][current.id];
     else PROGRESS[slug][current.id] = true;
+    persistCourseProgress(slug);
     // Re-render LMS in place (cheap full re-render of #app)
     var itemId = current.id;
     root.innerHTML = '';
@@ -3573,7 +4085,20 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
   checkEditorExemption();
 
   // ---------------- Init ----------------
-  renderTopNav();
+  // On a fresh page load / reload, an already-verified visitor's email sits
+  // in localStorage but the in-memory progress stores (WP_PROGRESS,
+  // ONBOARDING_CHECKED, GC_PROGRESS, CD_PROGRESS, PROGRESS,
+  // PORTFOLIO_SUBMITTED) start empty -- setVerifiedEmail() (and its
+  // loadPersistedProgress() hydration) only runs at the moment of an actual
+  // login or the daily silent recheck, neither of which fires on a plain
+  // reload. Hydrate explicitly here so every kind of progress survives a
+  // reload instead of reverting to unread/incomplete.
+  var bootEmail = getVerifiedEmail();
+  if(bootEmail) loadPersistedProgress(bootEmail, getVerifiedPortalType());
+
+  // navigate() renders the top nav itself (see above), so a single call
+  // here both draws the nav in its correct logged-in/out state and renders
+  // the initial route.
   navigate();
 
 })();
