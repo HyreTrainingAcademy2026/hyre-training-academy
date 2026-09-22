@@ -2901,7 +2901,20 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
       wpSection('acknowledgment', 'Acknowledgment', 'Sign-Off', acknowledgment)
     ];
 
-    if(!sectionId || !SECTIONS.some(function(s){ return s.id === sectionId; })) sectionId = SECTIONS[0].id;
+    // Resume where the enrollee left off: an explicit section id (from the
+    // sidebar, the pager, or a deep link) is always honored so someone can
+    // still go back and review an already-read section. But every entry
+    // point into the packet from elsewhere (the prereq table, quick links,
+    // "Start Here") links to the bare #/portal/va/welcome-packet route with
+    // no section id -- that used to always land on SECTIONS[0] regardless
+    // of progress, so logging out and back in (or just re-opening the
+    // packet) looked like it had reset to the first section every time,
+    // even though WP_PROGRESS was actually still tracking every section
+    // correctly underneath.
+    if(!sectionId || !SECTIONS.some(function(s){ return s.id === sectionId; })){
+      var firstUnread = SECTIONS.filter(function(s){ return !WP_PROGRESS[s.id]; })[0];
+      sectionId = firstUnread ? firstUnread.id : SECTIONS[SECTIONS.length-1].id;
+    }
     var current = SECTIONS.filter(function(s){ return s.id === sectionId; })[0];
 
     var lms = h('div', {class:'lms'});
@@ -3674,11 +3687,22 @@ footer{border-top:1px solid var(--border);padding:48px 0 40px;color:var(--text-f
   function renderLMS(slug, itemId){
     var m = MODULES[slug];
     var items = buildNavItems(m);
-    if(!itemId) itemId = items[0].id;
-    var current = items.filter(function(it){return it.id === itemId;})[0] || items[0];
-    var idx = items.indexOf(current);
-    if(isItemLocked(slug, items, idx)){
+    var current;
+    if(!itemId){
+      // No specific lesson requested -- this is how "Continue Course ->"
+      // (renderModuleDetail) and the module-table Details links reach here.
+      // Previously this always fell back to items[0] ("Overview"), and
+      // isItemLocked(idx 0) is always false, so nothing ever corrected it --
+      // "Continue" never actually continued, it silently restarted the
+      // course from the top every time, which is what made progress look
+      // like it wasn't sticking (it was; the entry point just never used it).
       current = firstUnlockedItem(slug, items);
+    } else {
+      current = items.filter(function(it){return it.id === itemId;})[0] || items[0];
+      var idx = items.indexOf(current);
+      if(isItemLocked(slug, items, idx)){
+        current = firstUnlockedItem(slug, items);
+      }
     }
 
     var lms = h('div', {class:'lms'});
