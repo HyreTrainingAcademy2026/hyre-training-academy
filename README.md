@@ -46,13 +46,20 @@ static file with no server-side code required to render pages.
 A couple of pieces do talk to the outside world:
 
 - **Login and registration** go through a Google Apps Script Web App backed
-  by a Google Sheet, which is where approved enrollees and their registration
-  details are recorded.
-- **Everything else — lesson progress, checklist status, certificate
-  names — lives only in each enrollee's own browser** (using a feature
-  called local storage), keyed to their verified email. It is not sent
-  anywhere or visible centrally. This is a known limitation; see
-  Recommendations below.
+  by a Google Sheet ("Registrations"), which is where approved enrollees and
+  their registration details are recorded. Logging in also returns the
+  enrollee's registered name, which the certificate name gets checked
+  against.
+- **Lesson progress and checklist status live primarily in each enrollee's
+  own browser** (using a feature called local storage), keyed to their
+  verified email — that copy is what the site itself reads to decide what's
+  unlocked. Every time it changes, a lightweight snapshot (prerequisites
+  cleared, current course and %, certificates earned, last activity time)
+  is also mirrored out to that same Registrations sheet, so anyone with the
+  sheet open — not just the enrollee, in that one browser — can see how
+  someone is doing. That sync is fire-and-forget: if it fails or is
+  blocked, the enrollee's own experience is unaffected, so the sheet can
+  occasionally lag a browser's local copy.
 
 ## Repository layout
 
@@ -68,6 +75,7 @@ splitting it into pieces under `build/`:
 | `build/image_tokens.json` | Maps short placeholder tokens inside `app.js` back to the real (large) embedded images, so `app.js` stays small enough to read and edit normally. |
 | `assemble.py` | Rebuilds `index.html` from everything above. Run this after any change to `build/`. |
 | `test-feedback-fixes.js` | An automated browser test suite (Playwright) covering the prerequisite gates, progress persistence, certificates, and other core behavior. |
+| `apps-script-updated.gs` | The Google Apps Script backend's source, kept here for reference. It isn't deployed from this repo — it's pasted into the Apps Script editor attached to the Registrations Google Sheet directly. |
 
 ## Making a change
 
@@ -80,17 +88,21 @@ splitting it into pieces under `build/`:
 
 ## Known limitations and recommendations
 
-- **Progress isn't tracked centrally.** There's currently no report or
-  dashboard anyone can check to see how an enrollee is progressing —
-  everything lives in that person's own browser. Adding real backend
-  tracking (logging events to a Sheet or database) is the main piece of
-  follow-up work worth prioritizing.
-- **Certificate names are self-entered, not verified.** An enrollee types
-  their name once and it locks permanently, which prevents printing
-  certificates under different names, but it isn't yet cross-checked
-  against their registration record. Fixing that requires a small change to
-  the Google Apps Script backend so it returns the registrant's name at
-  login.
+- **Progress is now mirrored to a shared dashboard, but it's still
+  browser-first.** The Registrations sheet gets a live snapshot of each
+  enrollee's prerequisites, current course, and certificates as they
+  happen, so anyone with the sheet can check in without needing that
+  person's browser. The enrollee's own browser is still the source of
+  truth the site itself reads from, though, so a lesson-by-lesson audit
+  trail (exactly which lessons, when) would still need a proper backend if
+  that level of detail is ever needed.
+- **Certificate names can now be cross-checked, once the updated Apps
+  Script is deployed.** An enrollee still types their name once and it
+  locks permanently, but login now also returns the name on file in the
+  registration record, so a mismatch is something the site (or a reviewer)
+  can actually detect going forward.
 - **Deployment is manual.** Updates go out by uploading the rebuilt
-  `index.html` through GitHub's web interface. A proper CI/CD pipeline would
-  reduce the chance of a bad upload reaching the live site.
+  `index.html` through GitHub's web interface, and backend changes go out
+  by pasting the updated script into the Apps Script editor and deploying a
+  new version of the existing Web App. A proper CI/CD pipeline would reduce
+  the chance of a bad upload reaching the live site.
